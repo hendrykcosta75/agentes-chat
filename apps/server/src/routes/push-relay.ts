@@ -22,7 +22,7 @@ const MAX_BODY_BYTES = 512 * 1024;
 
 export interface PushRelayDeps {
   db: Database;
-  /** The relay's own sender: Firebase with the Android app's service account. */
+  /** The relay's own sender: Firebase with the Android app's service account, APNs with the iPhone app's key. */
   sender: PushSender;
   rateLimiter: RateLimiter;
   /** `TRUSTED_PROXIES`, so registrations are limited per real address. */
@@ -33,8 +33,8 @@ export interface PushRelayDeps {
 type Vars = { Variables: { instance: RelayInstance } };
 
 /**
- * The push relay's API (ADR 0152), mounted at `/api/push-relay/v1` only when this server runs the relay
- * (`PUSH_RELAY_SERVE` with `FIREBASE_SERVICE_ACCOUNT`). Server to server, JSON only, no session or CSRF:
+ * The push relay's API (ADR 0152, ADR 0178), mounted at `/api/push-relay/v1` only when this server runs the relay
+ * (`PUSH_RELAY_SERVE` with `FIREBASE_SERVICE_ACCOUNT` or `APNS_KEY`). Server to server, JSON only, no session or CSRF:
  * installations register on their own and then call with `Authorization: Bearer <instanceId>.<secret>`.
  * Errors use the API's error shape (`{ error: { code, message } }`); the client reads `blocked` and
  * `params.retryable` from it.

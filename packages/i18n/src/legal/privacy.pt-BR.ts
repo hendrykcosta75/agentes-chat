@@ -121,7 +121,7 @@ export const privacyPtBR: LegalDocument = {
       id: "apps",
       heading: "10. Apps de celular e de Mac",
       blocks: [
-        "O app de celular envia notificações pela Expo, pela Apple e pelo Google. Uma notificação pode mostrar o nome de quem escreveu e o começo da mensagem, e você escolhe quais notificações recebe. O app de Mac e os computadores conectados guardam o login no próprio aparelho. Excluir a sua conta (o que também dá para fazer nos apps) desconecta todos os aparelhos.",
+        "O app de celular envia notificações pela Apple e pelo Google. Uma notificação pode mostrar o nome de quem escreveu e o começo da mensagem, e você escolhe quais notificações recebe. O app de Mac e os computadores conectados guardam o login no próprio aparelho. Excluir a sua conta (o que também dá para fazer nos apps) desconecta todos os aparelhos.",
       ],
     },
     {

@@ -30,7 +30,8 @@ afterEach(async () => {
 
 const MOBILE = { "x-agentes-client": "mobile" };
 /** The account's password, which the app sends to prove it's them (`DELETE /account`). */
-const TOKEN = "ExponentPushToken[phone-of-owner-01]";
+/** An iPhone's APNs device token (ADR 0178). */
+const TOKEN = "0a1b2c3d".repeat(8);
 /** An Android phone's FCM registration token (ADR 0152). */
 const FCM_TOKEN = `phone-of-bia:APA91b${"b".repeat(140)}`;
 
@@ -156,9 +157,20 @@ describe("push devices", () => {
 
     expect((await register(owner, { token: "not-a-token", platform: "ios", locale: "pt-BR" })).status).toBe(400);
     expect((await register(owner, { token: TOKEN, platform: "windows", locale: "pt-BR" })).status).toBe(400);
-    // Android sends its FCM token, the iPhone its Expo token: each refuses the other's.
-    expect((await register(owner, { token: TOKEN, platform: "android", locale: "pt-BR" })).status).toBe(400);
+    // Android sends its FCM token, the iPhone its APNs token: an iPhone refuses anything that isn't one, an older
+    // build's Expo token too.
     expect((await register(owner, { token: FCM_TOKEN, platform: "ios", locale: "pt-BR" })).status).toBe(400);
+    const expoToken = "ExponentPushToken[phone-of-owner-01]";
+    expect((await register(owner, { token: expoToken, platform: "ios", locale: "pt-BR" })).status).toBe(400);
+    expect((await register(owner, { token: expoToken, platform: "android", locale: "pt-BR" })).status).toBe(400);
+    // An iPhone says which app it is and whether it is a development build; neither can be junk.
+    const iphone = { token: TOKEN, platform: "ios", locale: "pt-BR" };
+    expect((await register(owner, { ...iphone, appId: "not a bundle id" })).status).toBe(400);
+    expect((await register(owner, { ...iphone, sandbox: "yes" })).status).toBe(400);
+    expect((await register(owner, { ...iphone, appId: "chat.agentes.app.preview", sandbox: true })).status).toBe(204);
+    expect((await t.db.select().from(schema.pushDevices)).map((r) => [r.appId, r.apnsSandbox])).toEqual([
+      ["chat.agentes.app.preview", true],
+    ]);
     expect((await register(owner, { token: "short:APA91b", platform: "android", locale: "pt-BR" })).status).toBe(400);
     expect((await register(owner, { token: TOKEN, platform: "ios", locale: "pt-BR" })).status).toBe(204);
     expect((await register(owner, { token: TOKEN, platform: "ios", locale: "en" })).status).toBe(204);
@@ -190,7 +202,7 @@ describe("push devices", () => {
     const other = browser(t);
     await signUp(other, "other@example.com");
     await fromApp(other, "/api/app/push/devices", {
-      json: { token: "ExponentPushToken[phone-of-other-01]", platform: "ios", locale: "en" },
+      json: { token: "9f8e7d6c".repeat(8), platform: "ios", locale: "en" },
     });
     const otherId = (await t.db.select().from(schema.pushDevices)).find((d) => d.userId !== userId)?.userId ?? "";
 

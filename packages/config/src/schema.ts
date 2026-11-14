@@ -833,13 +833,6 @@ export const envVars = {
     description: "Email approvers a digest of requests still waiting after this many hours (requests expire at 24 h).",
     section: "Email",
   },
-  EXPO_ACCESS_TOKEN: {
-    schema: z.string().optional(),
-    description:
-      "Expo access token for push notifications to the iPhone app (only needed when “enhanced push security” is on in the Expo project). iPhone pushes are sent through the Expo Push API either way; Android pushes don't use Expo (`PUSH_SENDER`).",
-    section: "Push",
-    secret: true,
-  },
   FIREBASE_SERVICE_ACCOUNT: {
     schema: z
       .string()
@@ -858,10 +851,68 @@ export const envVars = {
     section: "Push",
     secret: true,
   },
+  APNS_KEY: {
+    schema: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value === undefined) return value;
+        try {
+          const pem = parsePemKey(value);
+          if (!pem.includes("BEGIN PRIVATE KEY")) throw new Error("must be the .p8 key (-----BEGIN PRIVATE KEY-----)");
+          return pem;
+        } catch (error) {
+          ctx.addIssue({ code: "custom", message: (error as Error).message });
+          return z.NEVER;
+        }
+      }),
+    description:
+      "iPhone pushes straight to Apple (APNs): an APNs auth key (the .p8 file from the Apple Developer account › Keys, with the Apple Push Notifications service on) as PEM, PEM with `\\n` for newlines, or base64 of the file. Set it with `APNS_KEY_ID` and `APNS_TEAM_ID`. Only for a server that sends to an iPhone app signed by its own Apple team (`PUSH_SENDER`) or runs the push relay (`PUSH_RELAY_SERVE`); the app from the App Store is reached through the relay.",
+    section: "Push",
+    secret: true,
+  },
+  APNS_KEY_ID: {
+    schema: z
+      .string()
+      .regex(/^[A-Z0-9]{10}$/, "must be the 10-character id of the APNs key")
+      .optional(),
+    description: "The id of `APNS_KEY` (10 characters, shown beside the key in the Apple Developer account).",
+    section: "Push",
+    example: "ABC123DEFG",
+  },
+  APNS_TEAM_ID: {
+    schema: z
+      .string()
+      .regex(/^[A-Z0-9]{10}$/, "must be the 10-character Apple team id")
+      .optional(),
+    description: "The Apple Developer team that owns `APNS_KEY` and the iPhone app (10 characters).",
+    section: "Push",
+    example: "XYZ987WVUT",
+  },
+  APNS_APP_IDS: {
+    schema: z
+      .string()
+      .default("chat.agentes.app,chat.agentes.app.preview,chat.agentes.app.development")
+      .transform((value, ctx) => {
+        const ids = value
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+        const bad = ids.find((id) => !/^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){1,10}$/.test(id) || id.length > 155);
+        if (ids.length === 0 || bad !== undefined) {
+          ctx.addIssue({ code: "custom", message: `must be bundle ids separated by commas${bad ? ` (${bad})` : ""}` });
+          return z.NEVER;
+        }
+        return ids;
+      }),
+    description:
+      "The iPhone apps (bundle ids, separated by commas) this server pushes to with `APNS_KEY`; a push for any other is refused, since one key signs for every app of its team. The first is used for a phone that didn't say which app it runs.",
+    section: "Push",
+  },
   PUSH_SENDER: {
     schema: z.enum(["auto", "direct", "relay", "off"]).default("auto"),
     description:
-      "How Android pushes are sent (iPhones go through Expo for now). `auto` (default): straight to Firebase when `FIREBASE_SERVICE_ACCOUNT` is set, else through the push relay. `relay`: through the agentes.chat push relay (`PUSH_RELAY_URL`), which is what lets the Android app from the stores get this server's pushes; the server registers itself there on its first push, no account needed, and each push's text passes through it. `direct`: straight to Firebase with `FIREBASE_SERVICE_ACCOUNT`, for an Android app built with your own Firebase project. `off`: no Android pushes.",
+      "How pushes to the phone app are sent, each platform on its own. `auto` (default): Android straight to Firebase when `FIREBASE_SERVICE_ACCOUNT` is set and iPhones straight to Apple when `APNS_KEY` is, else through the push relay (the server that is the relay itself sends none for a platform without its credentials). `relay`: through the agentes.chat push relay (`PUSH_RELAY_URL`), which is what lets the app from the stores get this server's pushes; the server registers itself there on its first push, no account needed, and each push's text passes through it. `direct`: straight to Firebase with `FIREBASE_SERVICE_ACCOUNT` and to Apple with `APNS_KEY`, for an app built with your own Firebase project and Apple team. `off`: no phone pushes.",
     section: "Push",
   },
   PUSH_RELAY_URL: {
@@ -869,7 +920,8 @@ export const envVars = {
       .url()
       .refine((u) => u.startsWith("https://"), "must be an https URL")
       .default("https://app.agentes.chat/api/push-relay/v1"),
-    description: "The push relay Android pushes go through with `PUSH_SENDER=relay` (or `auto` without Firebase).",
+    description:
+      "The push relay phone pushes go through with `PUSH_SENDER=relay` (or `auto` without the platform's own credentials).",
     section: "Push",
   },
   PUSH_RELAY_SERVE: {
@@ -878,7 +930,7 @@ export const envVars = {
       .transform((on) => (on ? "on" : "off") as "on" | "off")
       .default("off"),
     description:
-      "Runs the push relay at `/api/push-relay/v1` for other installations' Android pushes, sent with this server's `FIREBASE_SERVICE_ACCOUNT` (agentes.chat's own servers). `on` without the service account serves nothing.",
+      "Runs the push relay at `/api/push-relay/v1` for other installations' phone pushes, sent with this server's `FIREBASE_SERVICE_ACCOUNT` (Android) and `APNS_KEY` (iPhone): agentes.chat's own servers. `on` with neither serves nothing.",
     section: "Push",
   },
   WEB_PUSH: {

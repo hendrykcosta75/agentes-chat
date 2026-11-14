@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { sessions, users } from "./auth";
 
 /**
@@ -8,7 +8,8 @@ import { sessions, users } from "./auth";
  * to one person at a time: registering it again moves it to whoever is signed in. Tokens the push
  * service reports as gone are deleted.
  *
- * Android phones carry their FCM registration token (ADR 0152), iPhones their Expo push token. Browsers
+ * Android phones carry their FCM registration token (ADR 0152), iPhones their APNs device token with the app
+ * it belongs to (ADR 0178). Browsers
  * (`web`) carry their Web Push subscription: the endpoint in `token` and its keys in `webKeys`, and belong
  * to the session that turned them on (`sessionId`).
  */
@@ -21,7 +22,7 @@ export const pushDevices = pgTable(
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    /** An Android phone's FCM token, an iPhone's Expo push token (`ExponentPushToken[…]`), or a browser's endpoint. */
+    /** An Android phone's FCM token, an iPhone's APNs device token (hex), or a browser's endpoint. */
     token: text().notNull().unique(),
     /** `ios | android | web`, validated in code. */
     platform: text().$type<"ios" | "android" | "web">().notNull(),
@@ -32,6 +33,10 @@ export const pushDevices = pgTable(
      * (signing out, everywhere too). Phones have none.
      */
     sessionId: text().references(() => sessions.id, { onDelete: "cascade" }),
+    /** An iPhone's app: its bundle id, the APNs topic its pushes go to (ADR 0178). Null: the sender's first app. */
+    appId: text(),
+    /** An iPhone development build, whose token is the APNs sandbox's. */
+    apnsSandbox: boolean().notNull().default(false),
     /** The device's language (`pt-BR`, `en`…): picks the push text. */
     locale: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),

@@ -4,7 +4,7 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  * The app's Expo config. Builds: the "Android build" and "iOS build" workflows on GitHub Actions, or EAS (see
  * README.md). The native projects are made from this file by `expo prebuild` and never committed.
  * - `EXPO_PUBLIC_API_URL`: the server the app talks to by default (production); people can pick their own.
- * - `EAS_PROJECT_ID`: overrides the EAS project (the iPhone's Expo push tokens need it); defaults to ours on expo.dev.
+ * - `EAS_PROJECT_ID`: overrides the EAS project, for those who build with EAS; defaults to ours on expo.dev.
  * - `APP_VARIANT`: "development" | "preview" | "production" (from eas.json or the workflow), so the three install
  *   side by side.
  * - `GOOGLE_SERVICES_JSON`: path to Firebase's google-services.json, for push on Android (FCM).
@@ -205,6 +205,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      // Pushes come straight from Firebase and from Apple with the system's own token (ADR 0152, ADR 0178). The
+      // plugin's `aps-environment` entitlement stays as it is: the profile that signs an iPhone build decides which
+      // of Apple's push environments its tokens belong to (a store build's is production), and the app reads that
+      // from the profile when it registers (src/lib/push.ts).
       "expo-notifications",
       {
         icon: "./assets/images/notification-icon.png",

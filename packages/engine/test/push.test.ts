@@ -18,7 +18,6 @@ import { unplainLeaves } from "../../i18n/test/plain-marks";
 import {
   addChannelMember,
   approvalIsHighRisk,
-  checkPushReceipts,
   createJobHandlers,
   createLocalKeyWrapper,
   deliverPush,
@@ -34,12 +33,10 @@ import {
   notifyApproval,
   openDm,
   PUSH_ACTIVE_DELAY_MS,
-  PUSH_RECEIPTS_DELAY_MS,
   postPersonMessage,
   pushLocale,
   pushQuote,
   pushStrings,
-  pushTicketsOf,
   registerPushDevice,
   remindNotifications,
   renderPush,
@@ -65,18 +62,19 @@ afterEach(async () => {
 });
 
 const deps = () => ({ db: f.db, pubsub: f.pubsub });
-const TOKEN_BIA = "ExponentPushToken[bia-phone-0001]";
-const TOKEN_BIA_EN = "ExponentPushToken[bia-tablet-0001]";
+/** An iPhone's APNs device token (ADR 0178). */
+const TOKEN_BIA = "b1a0".repeat(16);
+const TOKEN_BIA_EN = "b1a1".repeat(16);
 /** An Android phone's FCM registration token (ADR 0152). */
 const FCM_BIA = `bia-android:APA91b${"a".repeat(140)}`;
 
 /** Bia in #general with a phone (pt-BR), and the fake sender wired into the job handlers. */
-async function withPhone(options: { unregistered?: string[]; goneLater?: string[]; pushServer?: string } = {}) {
+async function withPhone(options: { unregistered?: string[]; pushServer?: string } = {}) {
   const bia = await addMember(f.db, f.org.id, "member", "bia");
   await listMembers(f.db, f.org.id); // assigns handles
   await addChannelMember(f.db, f.owner.id, f.org.id, f.general.id, { userId: bia.id });
   await registerPushDevice(f.db, bia.id, { token: TOKEN_BIA, platform: "ios", locale: "pt-BR" });
-  const push = createFakePushSender({ unregistered: options.unregistered, goneLater: options.goneLater });
+  const push = createFakePushSender({ unregistered: options.unregistered });
   const handlers = createJobHandlers({ ...f.jobDeps, push, pushServer: options.pushServer });
   const drain = () => drainOutbox(f.db, handlers);
   return { bia, push, drain };
@@ -540,35 +538,42 @@ describe("push delivery", () => {
     expect(await listPushDevices(f.db, bia.id)).toEqual([]);
   });
 
-  test("receipts ~15 min later: a device gone since is deleted, a working one stays", async () => {
+  test("an iPhone is pushed as the app and the environment it registered with", async () => {
     f = await setup();
-    const { bia, push, drain } = await withPhone({ goneLater: [TOKEN_BIA] });
-    await registerPushDevice(f.db, bia.id, { token: TOKEN_BIA_EN, platform: "android", locale: "en" });
+    const { bia, push, drain } = await withPhone();
+    // The phone's own token again, now saying which build it is; an Android phone says neither.
+    await registerPushDevice(f.db, bia.id, {
+      token: TOKEN_BIA,
+      platform: "ios",
+      locale: "pt-BR",
+      appId: "chat.agentes.app.preview",
+      sandbox: true,
+    });
+    await registerPushDevice(f.db, bia.id, {
+      token: FCM_BIA,
+      platform: "android",
+      locale: "en",
+      appId: "chat.agentes.app",
+      sandbox: true,
+    });
+    const devices = await listPushDevices(f.db, bia.id);
+    expect(devices.map((d) => [d.platform, d.appId, d.apnsSandbox])).toEqual([
+      ["ios", "chat.agentes.app.preview", true],
+      ["android", null, false],
+    ]);
     await postPersonMessage(deps(), f.owner.id, f.org.id, f.general.id, { body: "@bia oi" });
     await drain();
-    expect(push.sent).toHaveLength(2);
-    const [job] = await f.db.select().from(schema.outbox).where(eq(schema.outbox.kind, "push.receipts"));
-    expect(job?.nextAttemptAt.getTime()).toBeGreaterThan(Date.now() + PUSH_RECEIPTS_DELAY_MS - 60_000);
-    // Not due yet: nothing asked.
+    expect(push.sent.map((m) => [m.platform, m.apns])).toEqual([
+      ["ios", { topic: "chat.agentes.app.preview", sandbox: true }],
+      ["android", undefined],
+    ]);
+
+    // Registered again without them (a store build that read no profile): the sender's first app, production.
+    await registerPushDevice(f.db, bia.id, { token: TOKEN_BIA, platform: "ios", locale: "pt-BR" });
+    push.sent.length = 0;
+    await postPersonMessage(deps(), f.owner.id, f.org.id, f.general.id, { body: "@bia de novo" });
     await drain();
-    expect(push.receiptRequests).toEqual([]);
-    expect((await listPushDevices(f.db, bia.id)).length).toBe(2);
-
-    const later = new Date(Date.now() + PUSH_RECEIPTS_DELAY_MS + 60_000);
-    await drainOutbox(f.db, createJobHandlers({ ...f.jobDeps, push }), { now: later });
-    expect(push.receiptRequests).toHaveLength(1);
-    expect((await listPushDevices(f.db, bia.id)).map((d) => d.token)).toEqual([TOKEN_BIA_EN]);
-  });
-
-  test("checkPushReceipts ignores malformed tickets and senders without receipts", async () => {
-    f = await setup();
-    expect(pushTicketsOf([{ id: "a", token: "t" }, { id: 1 }, null, "x"])).toEqual([{ id: "a", token: "t" }]);
-    expect(pushTicketsOf(undefined)).toEqual([]);
-    const noReceipts = { id: "x", send: async () => [] };
-    expect(await checkPushReceipts({ db: f.db, push: noReceipts }, [{ id: "a", token: "t" }])).toEqual({
-      checked: 0,
-      removed: 0,
-    });
+    expect(push.sent.find((m) => m.platform === "ios")?.apns).toEqual({});
   });
 
   test("no phone, no job", async () => {
@@ -637,6 +642,38 @@ describe("Android push (FCM)", () => {
     const webPush = createFakeWebPushSender({ failing: [BROWSER] });
     await registerPushDevice(f.db, bia.id, webSubscription(BROWSER, await signIn(bia.id)));
     await expect(deliverPush({ db: f.db, push, webPush }, n?.id ?? "")).rejects.toMatchObject({ retryable: true });
+  });
+
+  test("a server with no Apple key: the iPhone stays registered, no retry, and it is pushed once the key is there", async () => {
+    f = await setup();
+    const bia = await addMember(f.db, f.org.id, "member", "bia");
+    await registerPushDevice(f.db, bia.id, { token: TOKEN_BIA, platform: "ios", locale: "pt-BR" });
+    await registerPushDevice(f.db, bia.id, { token: FCM_BIA, platform: "android", locale: "pt-BR" });
+    const [n] = await notify(deps(), {
+      orgId: f.org.id,
+      userIds: [bia.id],
+      kind: "mention",
+      groupKey: "mention:no-apns",
+      actor: { type: "agent", id: f.agent.id },
+      source: { channelId: f.general.id },
+      latest: { text: "oi" },
+    });
+    const fcm = createFakePushSender();
+    const keyless = createPhonePushSender({ android: fcm, ios: null });
+    expect(await deliverPush({ db: f.db, push: keyless }, n?.id ?? "")).toEqual({ sent: 1, removed: 0, failed: 0 });
+    expect(fcm.sent.map((m) => m.to)).toEqual([FCM_BIA]);
+    expect(await listPushDevices(f.db, bia.id)).toHaveLength(2);
+
+    // Only the iPhone: nothing sent is still no failure, so the outbox doesn't try again.
+    const onlyIos = createPhonePushSender({ android: null, ios: null });
+    expect(await deliverPush({ db: f.db, push: onlyIos }, n?.id ?? "")).toEqual({ sent: 0, removed: 0, failed: 0 });
+    expect(await listPushDevices(f.db, bia.id)).toHaveLength(2);
+
+    // The key arrives: the same registration is pushed, with no new build and no new sign-in.
+    const apns = createFakePushSender();
+    const keyed = createPhonePushSender({ android: createFakePushSender(), ios: apns });
+    expect((await deliverPush({ db: f.db, push: keyed }, n?.id ?? "")).sent).toBe(2);
+    expect(apns.sent.map((m) => m.to)).toEqual([TOKEN_BIA]);
   });
 });
 

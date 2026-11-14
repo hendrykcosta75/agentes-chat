@@ -1,4 +1,5 @@
 import type { PushMessage, PushResult, PushSender } from "./push";
+import { base64url, mapLimit } from "./push-util";
 
 /**
  * Android pushes straight through Firebase Cloud Messaging's HTTP v1 API (ADR 0152), with a service
@@ -90,8 +91,6 @@ export function fcmResultOf(token: string, status: number, payload: FcmErrorBody
   return { token, ok: false, unregistered: false, retryable: false, error };
 }
 
-const base64url = (input: string | Uint8Array) => Buffer.from(input).toString("base64url");
-
 /** The DER bytes of a PEM private key (`-----BEGIN PRIVATE KEY-----`, PKCS #8). */
 export function pemToDer(pem: string): Uint8Array<ArrayBuffer> {
   const b64 = pem
@@ -119,20 +118,6 @@ export async function fcmAssertion(account: FcmServiceAccount, key: CryptoKey, n
   )}`;
   const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(input));
   return `${input}.${base64url(new Uint8Array(signature))}`;
-}
-
-/** Runs `fn` over `items` with at most `limit` at once; results in order. */
-async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await fn(items[i] as T);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
-  return out;
 }
 
 class FcmAuthError extends Error {

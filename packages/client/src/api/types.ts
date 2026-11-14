@@ -80,11 +80,12 @@ export interface SpeechKeyInput {
 }
 
 /**
- * A device that hears pushes (`POST /api/app/push/devices`): the phone app's Expo token (ADR 0035), or this
+ * A device that hears pushes (`POST /api/app/push/devices`): the phone app's token (ADR 0035; an iPhone's with its
+ * app's id and whether it is a development build, ADR 0178), or this
  * browser's Web Push subscription (ADR 0071: its endpoint and keys, from `PushSubscription.toJSON()`).
  */
 export type PushDeviceInput =
-  | { platform: "ios" | "android"; token: string; locale: string }
+  | { platform: "ios" | "android"; token: string; locale: string; appId?: string; sandbox?: boolean }
   | { platform: "web"; endpoint: string; keys: { p256dh: string; auth: string }; locale: string };
 
 /** What the feedback form sends (`POST /api/app/feedback`): `id` is made by the app, so a retry goes once. */

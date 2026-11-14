@@ -53,8 +53,8 @@ export interface AppExtras {
   /** The router of messages nobody mentioned ("Responder agora" routes one again); null/absent = routing off. */
   router?: RouterDeps | null;
   /**
-   * The push relay's sender (ADR 0152, `PUSH_RELAY_SERVE`): Firebase; absent = one made from
-   * `FIREBASE_SERVICE_ACCOUNT`, null = no relay.
+   * The push relay's sender (ADR 0152, ADR 0178, `PUSH_RELAY_SERVE`): Firebase and APNs; absent = one made from
+   * `FIREBASE_SERVICE_ACCOUNT` and `APNS_KEY`, null = no relay.
    */
   pushRelaySender?: PushSender | null;
   /** The installation's Jev key, for its owner's routes (ADR 0073); absent = those routes answer 404. */

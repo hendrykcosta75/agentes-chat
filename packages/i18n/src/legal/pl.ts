@@ -293,7 +293,7 @@ export const legalPl: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. Aplikacje na telefon i na komputery Mac",
         blocks: [
-          "Aplikacja na telefon wysyła powiadomienia za pośrednictwem Expo, Apple i Google. Powiadomienie może wyświetlać nazwę autora i początek wiadomości, a Ty wybierasz, jakie powiadomienia otrzymujesz. Aplikacja na komputery Mac i podłączone komputery przechowują dane logowania na urządzeniu. Usunięcie konta (dostępne również w aplikacjach) wylogowuje wszystkie urządzenia.",
+          "Aplikacja na telefon wysyła powiadomienia za pośrednictwem Apple i Google. Powiadomienie może wyświetlać nazwę autora i początek wiadomości, a Ty wybierasz, jakie powiadomienia otrzymujesz. Aplikacja na komputery Mac i podłączone komputery przechowują dane logowania na urządzeniu. Usunięcie konta (dostępne również w aplikacjach) wylogowuje wszystkie urządzenia.",
         ],
       },
       {

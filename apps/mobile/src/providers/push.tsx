@@ -117,7 +117,7 @@ export function PushProvider({ children }: { children: ReactNode }) {
     if (ready) void registerDeviceActions(t);
   }, [ready, t]);
 
-  // Android: FCM may hand the app a new token while it runs; it's registered again (ADR 0152).
+  // The system may hand the app a new token while it runs; it's registered again (ADR 0152, ADR 0178).
   useEffect(() => {
     if (!ready) return;
     return watchPushToken(() => localeRef.current);

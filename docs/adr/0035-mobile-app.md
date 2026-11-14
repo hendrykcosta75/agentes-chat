@@ -45,7 +45,7 @@ We want a phone app with the same identity and behavior as the web. Today all cl
 - Sign in with Apple is a social provider when `APPLE_CLIENT_ID`/`APPLE_TEAM_ID`/`APPLE_KEY_ID`/`APPLE_PRIVATE_KEY` are set, and `authConfig` lists it (App Store 4.8, required because we offer Google).
 - The app sells nothing. Plans are bought on the web.
 
-- Push receipts: each send that got tickets schedules a `push.receipts` job about 15 minutes later; it asks Expo (`/--/api/v2/push/getReceipts`) and deletes the tokens whose receipt says `DeviceNotRegistered`.
+- Push receipts: each send that got tickets schedules a `push.receipts` job about 15 minutes later; it asks Expo (`/--/api/v2/push/getReceipts`) and deletes the tokens whose receipt says `DeviceNotRegistered`. *Amended 2026-11-13 (ADR 0178):* no phone push goes through Expo any more, Firebase and Apple answer each message at once, and the receipts job is gone.
 - Deleting an account that signed in with Apple revokes its Apple token (`https://appleid.apple.com/auth/revoke`, the refresh token when Better Auth kept one, else the access token), best effort, after the account is gone, with a client secret signed for the call.
 
 **Known gaps (follow-ups):** the Apple client secret used for sign-in is signed at boot and lasts 150 days, so the server must restart within that window. A native iOS sign-in (id token only) stores no Apple token, so there is nothing to revoke for it.

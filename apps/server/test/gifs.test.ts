@@ -213,7 +213,7 @@ describe("posting a GIF or a sticker", () => {
     const bia = await joinByInvitation(t, owner, orgId, "bia@example.com");
     // The right hand greets who joins: that push is not this one, so it goes out before their device is known.
     await t.drain();
-    const token = "ExponentPushToken[phone-of-bia-0001]";
+    const token = "b1a0c0de".repeat(8);
     const registered = await bia("/api/app/push/devices", {
       json: { token, platform: "ios", locale: "pt-BR" },
       origin: null,

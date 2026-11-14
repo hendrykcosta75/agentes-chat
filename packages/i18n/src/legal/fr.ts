@@ -293,7 +293,7 @@ export const legalFr: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. Applications mobile et Mac",
         blocks: [
-          "L'application mobile envoie des notifications par l'intermédiaire d'Expo, d'Apple et de Google. Une notification peut afficher le nom de l'auteur et le début du message, et vous choisissez les notifications que vous recevez. L'application Mac et les ordinateurs connectés conservent leur connexion sur l'appareil. La suppression de votre compte (également disponible dans les applications) déconnecte tous les appareils.",
+          "L'application mobile envoie des notifications par l'intermédiaire d'Apple et de Google. Une notification peut afficher le nom de l'auteur et le début du message, et vous choisissez les notifications que vous recevez. L'application Mac et les ordinateurs connectés conservent leur connexion sur l'appareil. La suppression de votre compte (également disponible dans les applications) déconnecte tous les appareils.",
         ],
       },
       {

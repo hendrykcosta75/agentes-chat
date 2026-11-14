@@ -16,7 +16,11 @@ import {
   createHolder,
   deviceBody,
   devicePath,
+  fileUri,
+  latin1,
+  pushTarget,
   quietWhileOpen,
+  readProfile,
   readPushData,
   systemToken,
 } from "../src/lib/push-payload";
@@ -33,17 +37,78 @@ describe("push payload", () => {
     expect(readPushData("nope")).toEqual({});
   });
   test("device registration body and path", () => {
-    expect(deviceBody("ExponentPushToken[abc]", "ios", "pt-BR")).toEqual({
-      token: "ExponentPushToken[abc]",
+    const apns = "0a1b".repeat(16);
+    expect(deviceBody({ token: apns, platform: "ios", locale: "pt-BR" })).toEqual({
+      token: apns,
       platform: "ios",
       locale: "pt-BR",
     });
-    expect(deviceBody("t", "android", "en").platform).toBe("android");
-    expect(devicePath("ExponentPushToken[a b]")).toBe("/api/app/push/devices/ExponentPushToken%5Ba%20b%5D");
+    // An iPhone says which app it is, and that its pushes come from Apple's sandbox only when they do.
+    expect(
+      deviceBody({ token: apns, platform: "ios", locale: "en", appId: "chat.agentes.app.preview", sandbox: true }),
+    ).toEqual({ token: apns, platform: "ios", locale: "en", appId: "chat.agentes.app.preview", sandbox: true });
+    expect(deviceBody({ token: apns, platform: "ios", locale: "en", appId: null, sandbox: false })).toEqual({
+      token: apns,
+      platform: "ios",
+      locale: "en",
+    });
+    // Android needs neither.
+    expect(
+      deviceBody({ token: "t", platform: "android", locale: "en", appId: "chat.agentes.app", sandbox: true }),
+    ).toEqual({ token: "t", platform: "android", locale: "en" });
+    // The phone's other accounts on that server keep the token too (ADR 0183), on either platform.
+    expect(deviceBody({ token: "t", platform: "android", locale: "en", sharedWith: ["u2"] })).toEqual({
+      token: "t",
+      platform: "android",
+      locale: "en",
+      sharedWith: ["u2"],
+    });
+    expect(deviceBody({ token: apns, platform: "ios", locale: "en", sharedWith: [] })).toEqual({
+      token: apns,
+      platform: "ios",
+      locale: "en",
+    });
+    expect(
+      deviceBody({ token: apns, platform: "ios", locale: "en", appId: "chat.agentes.app", sharedWith: ["u2", "u3"] }),
+    ).toEqual({ token: apns, platform: "ios", locale: "en", appId: "chat.agentes.app", sharedWith: ["u2", "u3"] });
+    expect(devicePath("fcm:APA91b a")).toBe("/api/app/push/devices/fcm%3AAPA91b%20a");
   });
-  test("the system's push token is the FCM token string, nothing else", () => {
+  test("the iPhone build's profile says its app and Apple's push environment", () => {
+    /** A provisioning profile as the bundle has it: a binary signature around the plist XML. */
+    const profile = (appId: string, aps: string | null) => {
+      const xml = [
+        "<plist><dict><key>Entitlements</key><dict>",
+        `<key>application-identifier</key>\n\t<string>ABCDE12345.${appId}</string>`,
+        aps ? `<key>aps-environment</key><string>${aps}</string>` : "",
+        "</dict></dict></plist>",
+      ].join("");
+      return new Uint8Array([0x30, 0x82, 0xff, 0x00, ...new TextEncoder().encode(xml), 0xa0, 0x82, 0x80, 0xfe]);
+    };
+    const dev = readProfile(latin1(profile("chat.agentes.app.development", "development")));
+    expect(dev).toEqual({ apsEnvironment: "development", appId: "chat.agentes.app.development" });
+    const adHoc = readProfile(latin1(profile("chat.agentes.app.preview", "production")));
+    expect(adHoc).toEqual({ apsEnvironment: "production", appId: "chat.agentes.app.preview" });
+    expect(readProfile(latin1(profile("*", null)))).toEqual({ apsEnvironment: null, appId: null });
+    expect(readProfile("")).toEqual({ apsEnvironment: null, appId: null });
+    // Long enough to be read in more than one piece.
+    expect(latin1(new Uint8Array(20_000).fill(65))).toBe("A".repeat(20_000));
+
+    const config = { ios: { bundleIdentifier: "chat.agentes.app" } };
+    expect(pushTarget("ios", dev, config)).toEqual({ appId: "chat.agentes.app.development", sandbox: true });
+    expect(pushTarget("ios", adHoc, config)).toEqual({ appId: "chat.agentes.app.preview", sandbox: false });
+    // No profile (a store install): the config's app, production.
+    expect(pushTarget("ios", null, config)).toEqual({ appId: "chat.agentes.app", sandbox: false });
+    expect(pushTarget("ios", null, null)).toEqual({ appId: null, sandbox: false });
+    expect(pushTarget("android", dev, config)).toEqual({ appId: null, sandbox: false });
+    expect(fileUri("/var/containers/Bundle/agentes preview.app")).toBe(
+      "file:///var/containers/Bundle/agentes%20preview.app",
+    );
+    expect(fileUri("file:///var/x.app")).toBe("file:///var/x.app");
+  });
+  test("the system's push token is the token string, nothing else", () => {
     const fromAndroid = { type: "android", data: "fcm:APA91b-token" };
     expect(systemToken(fromAndroid)).toBe("fcm:APA91b-token");
+    expect(systemToken({ type: "ios", data: "0a1b".repeat(16) })).toBe("0a1b".repeat(16));
     expect(systemToken({ data: "" })).toBeNull();
     expect(systemToken({ data: { endpoint: "https://push.example" } })).toBeNull();
     expect(systemToken({ data: "x".repeat(2049) })).toBeNull();

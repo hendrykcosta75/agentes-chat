@@ -289,7 +289,7 @@ export const legalZhHans: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. 手机和 Mac 应用",
         blocks: [
-          "手机应用通过 Expo、Apple 和 Google 发送通知。通知可能会显示撰写者的姓名和消息的开头部分，您可以选择接收哪些通知。Mac 应用和已连接的计算机将其登录状态保存在设备上。删除您的账户（也可在应用中操作）会使所有设备退出登录。",
+          "手机应用通过 Apple 和 Google 发送通知。通知可能会显示撰写者的姓名和消息的开头部分，您可以选择接收哪些通知。Mac 应用和已连接的计算机将其登录状态保存在设备上。删除您的账户（也可在应用中操作）会使所有设备退出登录。",
         ],
       },
       {

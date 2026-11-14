@@ -121,7 +121,7 @@ export const privacyEn: LegalDocument = {
       id: "apps",
       heading: "10. Phone and Mac apps",
       blocks: [
-        "The phone app sends notifications through Expo, Apple and Google. A notification may show the name of who wrote and the beginning of the message, and you choose which notifications you get. The Mac app and connected computers keep their sign-in on the device. Deleting your account (also available in the apps) signs every device out.",
+        "The phone app sends notifications through Apple and Google. A notification may show the name of who wrote and the beginning of the message, and you choose which notifications you get. The Mac app and connected computers keep their sign-in on the device. Deleting your account (also available in the apps) signs every device out.",
       ],
     },
     {

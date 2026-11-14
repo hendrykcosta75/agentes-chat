@@ -338,7 +338,7 @@ describe("GITHUB_APP_PRIVATE_KEY", () => {
   });
 });
 
-describe("Android push settings", () => {
+describe("phone push settings", () => {
   test("auto by default, through agentes.chat's relay unless told otherwise; the relay only over https", () => {
     const config = loadConfig(valid);
     expect(config.PUSH_SENDER).toBe("auto");
@@ -350,6 +350,42 @@ describe("Android push settings", () => {
     });
     expect(() => loadConfig({ ...valid, PUSH_SENDER: "expo" })).toThrow("PUSH_SENDER");
     expect(() => loadConfig({ ...valid, PUSH_RELAY_URL: "http://relay.example/v1" })).toThrow("PUSH_RELAY_URL");
+  });
+});
+
+describe("APNs key", () => {
+  // Made up, and put together here so the secret scan reads no key in it.
+  const pemOf = (label: string, body: string) => `-----BEGIN ${label}-----\n${body}\n-----END ${label}-----\n`;
+  const p8 = pemOf("PRIVATE KEY", "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49");
+
+  test("the .p8 as PEM or base64, its ids, and the apps it pushes to", () => {
+    const set = { APNS_KEY: p8, APNS_KEY_ID: "ABC123DEFG", APNS_TEAM_ID: "XYZ987WVUT" };
+    const config = loadConfig({ ...valid, ...set });
+    expect(config.APNS_KEY).toBe(p8.trim());
+    expect(config.APNS_KEY_ID).toBe("ABC123DEFG");
+    expect(config.APNS_TEAM_ID).toBe("XYZ987WVUT");
+    expect(config.APNS_APP_IDS).toEqual([
+      "chat.agentes.app",
+      "chat.agentes.app.preview",
+      "chat.agentes.app.development",
+    ]);
+    expect(redactConfig(config).APNS_KEY).toBe("********");
+    expect(loadConfig({ ...valid, APNS_KEY: Buffer.from(p8).toString("base64") }).APNS_KEY).toBe(p8.trim());
+    expect(loadConfig({ ...valid, APNS_APP_IDS: " com.example.app , com.example.app.beta " }).APNS_APP_IDS).toEqual([
+      "com.example.app",
+      "com.example.app.beta",
+    ]);
+    expect(loadConfig(valid).APNS_KEY).toBeUndefined();
+  });
+
+  test("anything else fails the config with a clear message", () => {
+    expect(() => loadConfig({ ...valid, APNS_KEY: "not-a-key" })).toThrow("APNS_KEY");
+    const ec = pemOf("EC PRIVATE KEY", "MHcCAQEEIA==");
+    expect(() => loadConfig({ ...valid, APNS_KEY: ec })).toThrow(".p8");
+    expect(() => loadConfig({ ...valid, APNS_KEY_ID: "short" })).toThrow("APNS_KEY_ID");
+    expect(() => loadConfig({ ...valid, APNS_TEAM_ID: "lowercase1" })).toThrow("APNS_TEAM_ID");
+    expect(() => loadConfig({ ...valid, APNS_APP_IDS: "chat.agentes.app,not a bundle id" })).toThrow("APNS_APP_IDS");
+    expect(() => loadConfig({ ...valid, APNS_APP_IDS: " , " })).toThrow("APNS_APP_IDS");
   });
 });
 

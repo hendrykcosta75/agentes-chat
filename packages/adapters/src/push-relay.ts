@@ -1,11 +1,13 @@
 import { PushError, type PushMessage, type PushResult, type PushSender } from "./push";
+import { APNS_PUSH_TOKEN } from "./push-apns";
 import { FCM_PUSH_TOKEN } from "./push-fcm";
 
 /**
- * Android pushes through the push relay (ADR 0152). The Android app is one app in the stores, built with
- * agentes.chat's Firebase project, whose service account a self-hosted server doesn't have. So the
- * server sends through a relay that holds it: it registers itself on first use (no account, nothing to
- * configure), keeps the credentials the relay gave it, and sends the messages it would send to Firebase.
+ * Phone pushes through the push relay (ADR 0152, ADR 0178). The phone app is one app in the stores, built
+ * with agentes.chat's Firebase project and signed by its Apple team, whose service account and APNs key a
+ * self-hosted server doesn't have. So the server sends through a relay that holds them: it registers itself
+ * on first use (no account, nothing to configure), keeps the credentials the relay gave it, and sends the
+ * messages it would send to Firebase or to Apple.
  */
 
 /** Where an installation keeps what the relay gave it (the engine stores it sealed in the database). */
@@ -114,12 +116,16 @@ export function createRelayPushSender(options: {
     id: "relay",
     async send(messages: PushMessage[]) {
       const results = new Array<PushResult>(messages.length);
-      // The relay refuses a whole request over one token that can't be an FCM token (an Expo token an older
-      // Android build registered): such a token never reaches a phone through it, so it answers as gone here.
+      // The relay refuses a whole request over one token that can't be its platform's (an Expo token an older
+      // build registered): such a token never reaches a phone through it, so it answers as gone here.
       const sendable: number[] = [];
       messages.forEach((m, i) => {
-        if (FCM_PUSH_TOKEN.test(m.to)) sendable.push(i);
-        else results[i] = { token: m.to, ok: false, unregistered: true, error: "not an FCM registration token" };
+        const ios = m.platform === "ios";
+        if ((ios ? APNS_PUSH_TOKEN : FCM_PUSH_TOKEN).test(m.to)) sendable.push(i);
+        else {
+          const error = ios ? "not an APNs device token" : "not an FCM registration token";
+          results[i] = { token: m.to, ok: false, unregistered: true, error };
+        }
       });
       for (let i = 0; i < sendable.length; i += PUSH_RELAY_BATCH) {
         const at = sendable.slice(i, i + PUSH_RELAY_BATCH);
@@ -134,13 +140,16 @@ export function createRelayPushSender(options: {
           results[at[n] as number] =
             r.ok === true
               ? { token: m.to, ok: true, unregistered: false }
-              : {
-                  token: m.to,
-                  ok: false,
-                  unregistered: r.unregistered === true,
-                  ...(r.unregistered === true ? {} : { retryable: r.retryable === true }),
-                  error: typeof r.error === "string" ? r.error : "error",
-                };
+              : r.skipped === true
+                ? // The relay sends nothing to this platform: the device stays, as with no sender here.
+                  { token: m.to, ok: false, unregistered: false, skipped: true, error: "the push relay sends none" }
+                : {
+                    token: m.to,
+                    ok: false,
+                    unregistered: r.unregistered === true,
+                    ...(r.unregistered === true ? {} : { retryable: r.retryable === true }),
+                    error: typeof r.error === "string" ? r.error : "error",
+                  };
         });
       }
       return results;
@@ -157,6 +166,9 @@ function relayMessageOf(m: PushMessage) {
     body: m.body,
     data: m.data,
     ...(m.priority ? { priority: m.priority } : {}),
+    // An iPhone's app and environment, and the buttons its notification shows (ADR 0178).
+    ...(m.platform === "ios" && m.apns ? { apns: m.apns } : {}),
+    ...(m.platform === "ios" && m.category ? { category: m.category } : {}),
   };
 }
 
@@ -169,7 +181,7 @@ function failure(what: string, status: number, payload: RelayErrorBody): PushErr
   const message = payload.error?.message;
   if (status === 403 && code === "blocked") {
     return new PushError(
-      "this installation is blocked at the push relay: Android notifications are off until its operator lifts it",
+      "this installation is blocked at the push relay: phone notifications are off until its operator lifts it",
       false,
       status,
     );

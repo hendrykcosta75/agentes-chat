@@ -20,11 +20,12 @@ import { isPersonalWorkspace } from "./workspace-mode";
 const { pushDevices, notifications, agents, users, approvals, sessions } = schema;
 
 /**
- * Push to the phone app (ADR 0035, ADR 0152) and to browsers (Web Push, ADR 0071). A
+ * Push to the phone app (ADR 0035, ADR 0152, ADR 0178) and to browsers (Web Push, ADR 0071). A
  * notification that should reach the person's devices enqueues one
  * `push.send` job; the job renders the text per device language and sends
  * through the `PushSender` adapter (phones: Android straight to Firebase,
- * iPhones through Expo) and the `WebPushSender` (browsers).
+ * iPhones straight to Apple, or both through the push relay) and the
+ * `WebPushSender` (browsers).
  *
  * What pushes: what the person chose in this workspace (`noticeOn`, ADR 0071 §8; by default everything in
  * "Esperando você", mentions, DMs from a person, an agent's answer to them, and missions or routines that
@@ -33,9 +34,6 @@ const { pushDevices, notifications, agents, users, approvals, sessions } = schem
  * person waits `PUSH_ACTIVE_DELAY_MS` while they have the app open (ADR 0071 §5): read meanwhile, it never
  * pushes.
  */
-
-/** Expo keeps receipts for a day and has most ready within 15 minutes: ask then. */
-export const PUSH_RECEIPTS_DELAY_MS = 15 * 60_000;
 
 /** Devices kept per person, phones and browsers together (the oldest are dropped when a new one registers). */
 export const MAX_PUSH_DEVICES = 10;
@@ -47,7 +45,7 @@ export const PUSH_ACTIVE_DELAY_MS = 45_000;
 export const WEB_PUSH_TTL_SECONDS = 86_400;
 
 /**
- * Phone platforms: Android with its FCM token, iOS with an Expo push token. Browsers register as `web` with
+ * Phone platforms: Android with its FCM token, iOS with its APNs device token. Browsers register as `web` with
  * their subscription instead.
  */
 export const PUSH_PLATFORMS = ["ios", "android"] as const;
@@ -62,7 +60,16 @@ export type PushPlatform = (typeof PUSH_PLATFORMS)[number];
  * stay beside this one. Anyone else's goes (the device changed hands).
  */
 export type PushDeviceInput =
-  | { token: string; platform: PushPlatform; locale: string; sharedWith?: readonly string[] }
+  | {
+      token: string;
+      platform: PushPlatform;
+      locale: string;
+      /** An iPhone's app (its bundle id, the APNs topic, ADR 0178). Absent: pushed as the sender's first app. */
+      appId?: string | null;
+      /** An iPhone development build: its token is the APNs sandbox's. */
+      sandbox?: boolean;
+      sharedWith?: readonly string[];
+    }
   | {
       platform: "web";
       endpoint: string;
@@ -72,11 +79,17 @@ export type PushDeviceInput =
       sharedWith?: readonly string[];
     };
 
-/** An Expo push token as the iPhone app gets it from `getExpoPushTokenAsync`. */
-export const EXPO_PUSH_TOKEN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{8,200}\]$/;
-
-/** An FCM registration token as the Android app gets it (ADR 0152): the shape the push relay also checks. */
-export { FCM_PUSH_TOKEN } from "@agenteschat/adapters";
+/**
+ * An FCM registration token as the Android app gets it (ADR 0152) and an APNs device token as the iPhone app
+ * does (ADR 0178), with an iPhone app's id and a notification category's: the shapes the push relay also checks.
+ */
+export {
+  APNS_APP_ID_MAX,
+  APNS_CATEGORY,
+  APNS_PUSH_TOKEN,
+  apnsAppIdValid,
+  FCM_PUSH_TOKEN,
+} from "@agenteschat/adapters";
 
 type NotificationRow = typeof notifications.$inferSelect;
 
@@ -165,14 +178,26 @@ export async function registerPushDevice(
           webKeys: unpadded(input.keys),
           sessionId: input.sessionId,
           locale: input.locale,
+          appId: null,
+          apnsSandbox: false,
         }
-      : { token: input.token, platform: input.platform, webKeys: null, sessionId: null, locale: input.locale };
+      : {
+          token: input.token,
+          platform: input.platform,
+          webKeys: null,
+          sessionId: null,
+          locale: input.locale,
+          appId: input.platform === "ios" ? (input.appId ?? null) : null,
+          apnsSandbox: input.platform === "ios" && input.sandbox === true,
+        };
   const stays = [userId, ...(input.sharedWith ?? []).slice(0, MAX_SHARED_ACCOUNTS)];
   const seen = {
     platform: device.platform,
     webKeys: device.webKeys,
     sessionId: device.sessionId,
     locale: device.locale,
+    appId: device.appId,
+    apnsSandbox: device.apnsSandbox,
     lastSeenAt: now,
   };
   await db.transaction(async (tx) => {
@@ -249,7 +274,7 @@ async function pushTargets(db: Database, userId: string, now: Date) {
 
 export interface PushDeps {
   db: Database;
-  /** Phones (Android through FCM, iPhones through Expo: `createPhonePushSender`); absent = no phone push. */
+  /** Phones (Android through FCM, iPhones through APNs: `createPhonePushSender`); absent = no phone push. */
   push?: PushSender | null;
   /** Browsers (Web Push, ADR 0071); absent = no browser push. */
   webPush?: WebPushSender | null;
@@ -378,8 +403,7 @@ export function pushQuote(latest: Pick<NotificationLatest, "text" | "meta">): st
  * it was read, done or snoozed meanwhile: phones through `push` (one call),
  * browsers whose session is still on through `webPush` (one per subscription).
  * Devices their push service reports as gone are deleted, and so are browsers
- * whose session ended. Accepted phone tickets are checked
- * again later: a `push.receipts` job ~15 min after (`checkPushReceipts`).
+ * whose session ended.
  *
  * Not waiting on the person and they have the app open: the first run holds
  * it, enqueueing itself once more `PUSH_ACTIVE_DELAY_MS` later (`held`).
@@ -473,6 +497,10 @@ export async function deliverPush(
     const messages: PushMessage[] = phones.map((d) => ({
       to: d.token,
       platform: d.platform === "ios" ? "ios" : "android",
+      // An iPhone's app and environment, as it registered them (ADR 0178).
+      ...(d.platform === "ios"
+        ? { apns: { ...(d.appId ? { topic: d.appId } : {}), ...(d.apnsSandbox ? { sandbox: true } : {}) } }
+        : {}),
       ...renderPush(pushLocale(d.locale), text),
       data,
       priority: row.waiting ? "high" : "default",
@@ -483,22 +511,11 @@ export async function deliverPush(
       const results = await deps.push.send(messages);
       sent += results.filter((r) => r.ok).length;
       gone.push(...results.filter((r) => r.unregistered).map((r) => r.token));
-      // Android answers per phone (FCM): one that may take it later (429, 5xx) lets the outbox try again. A
+      // Phones answer one by one (FCM, APNs): one that may take it later (429, 5xx) lets the outbox try again. A
       // platform this server sends nothing to (`skipped`) is no failure: it would keep the others from a retry.
       for (const r of results) {
         if (r.ok || r.unregistered || r.skipped) continue;
         failures.push({ retryable: r.retryable === true, error: r.error ?? "not sent" });
-      }
-      const tickets = results.flatMap((r) => (r.ok && r.ticketId ? [{ id: r.ticketId, token: r.token }] : []));
-      if (tickets.length > 0 && deps.push.receipts) {
-        await enqueue(db, {
-          orgId: row.orgId,
-          kind: "push.receipts",
-          payload: { tickets },
-          dedupeKey: `push.receipts:${row.id}`,
-          runAt: new Date(now.getTime() + PUSH_RECEIPTS_DELAY_MS),
-          maxAttempts: 4,
-        });
       }
     } catch (error) {
       phoneRequestFailed = true;
@@ -543,47 +560,6 @@ export async function deliverPush(
     }
   }
   return { sent, removed: gone.length, failed: failures.length };
-}
-
-export interface PushTicket {
-  id: string;
-  token: string;
-}
-
-/** A job payload's tickets, keeping only well-formed ones. */
-export function pushTicketsOf(value: unknown): PushTicket[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((t) =>
-    t && typeof t === "object" && typeof t.id === "string" && typeof t.token === "string"
-      ? [{ id: t.id, token: t.token }]
-      : [],
-  );
-}
-
-/**
- * Job `push.receipts`: asks the push service what happened to earlier
- * tickets and deletes the tokens whose device is gone
- * (`DeviceNotRegistered`), whoever holds them now. Tickets without a
- * receipt are left alone.
- */
-export async function checkPushReceipts(
-  deps: PushDeps,
-  tickets: PushTicket[],
-): Promise<{ checked: number; removed: number }> {
-  if (!deps.push?.receipts || tickets.length === 0) return { checked: 0, removed: 0 };
-  const receipts = await deps.push.receipts(tickets.map((t) => t.id));
-  const tokenOf = new Map(tickets.map((t) => [t.id, t.token]));
-  const gone = [
-    ...new Set(
-      receipts.flatMap((r) => (r.unregistered && tokenOf.has(r.ticketId) ? [tokenOf.get(r.ticketId) as string] : [])),
-    ),
-  ];
-  if (gone.length === 0) return { checked: receipts.length, removed: 0 };
-  const removed = await deps.db
-    .delete(pushDevices)
-    .where(inArray(pushDevices.token, gone))
-    .returning({ id: pushDevices.id });
-  return { checked: receipts.length, removed: removed.length };
 }
 
 /** Ids `POST /push/stale` takes at once. */

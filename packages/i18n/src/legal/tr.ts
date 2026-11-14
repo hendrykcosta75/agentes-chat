@@ -293,7 +293,7 @@ export const legalTr: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. Telefon ve Mac uygulamaları",
         blocks: [
-          "Telefon uygulaması bildirimleri Expo, Apple ve Google aracılığıyla gönderir. Bir bildirim, yazan kişinin adını ve mesajın başlangıcını gösterebilir ve hangi bildirimleri alacağınızı siz seçersiniz. Mac uygulaması ve bağlı bilgisayarlar oturum bilgilerini cihazda tutar. Hesabınızı silmek (uygulamalarda da mümkündür) tüm cihazlardaki oturumları kapatır.",
+          "Telefon uygulaması bildirimleri Apple ve Google aracılığıyla gönderir. Bir bildirim, yazan kişinin adını ve mesajın başlangıcını gösterebilir ve hangi bildirimleri alacağınızı siz seçersiniz. Mac uygulaması ve bağlı bilgisayarlar oturum bilgilerini cihazda tutar. Hesabınızı silmek (uygulamalarda da mümkündür) tüm cihazlardaki oturumları kapatır.",
         ],
       },
       {

@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-02
 - Amends: 0035 §4 (phone pushes went through the Expo Push API on both platforms)
+- Amended by: 0178 (§6: iPhones go straight to Apple, and through the relay too)
 - Code: `packages/adapters/src/push-fcm.ts` (`createFcmPushSender`, `fcmMessage`), `push-relay.ts`
   (`createRelayPushSender`), `push.ts` (`createPhonePushSender`, `PushMessage.platform`);
   `packages/config/src/pem.ts` (`parseFirebaseServiceAccount`), `schema.ts` (`FIREBASE_SERVICE_ACCOUNT`,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   createFakePushSender,
   createMemoryRateLimiter,
+  createPhonePushSender,
   createRelayPushSender,
   PushError,
   type PushMessage,
@@ -83,13 +84,16 @@ describe("push relay routes", () => {
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("blocked");
   });
 
-  test("bad bodies are 400; an iPhone's message is refused; too large is 413", async () => {
+  test("bad bodies are 400; an iPhone's message needs an iPhone's token; too large is 413", async () => {
     const { post, register } = relay();
     const { auth } = await register();
     expect((await post("/send", "not json", auth)).status).toBe(400);
     expect((await post("/send", { messages: "x" }, auth)).status).toBe(400);
     expect((await post("/send", { messages: [{ ...msg(1), to: "nope" }] }, auth)).status).toBe(400);
     expect((await post("/send", { messages: [{ ...msg(1), platform: "ios" }] }, auth)).status).toBe(400);
+    const iphone = { ...msg(1), platform: "ios", to: "0f".repeat(32), apns: { topic: "chat.agentes.app" } };
+    expect((await post("/send", { messages: [iphone] }, auth)).status).toBe(200);
+    expect((await post("/send", { messages: [{ ...iphone, apns: { topic: "nope" } }] }, auth)).status).toBe(400);
     const huge = { messages: [{ ...msg(1), body: "x".repeat(600 * 1024) }] };
     expect((await post("/send", huge, auth)).status).toBe(413);
   });
@@ -150,6 +154,49 @@ describe("push relay routes", () => {
     const again = await sender.send([msg(3)]);
     expect(again[0]?.ok).toBe(true);
     expect(await db.select().from(schema.pushRelayInstances)).toHaveLength(1);
+  });
+
+  test("a relay with no Apple key answers iPhones as skipped: one call, the Android ones still go", async () => {
+    const fcm = createFakePushSender();
+    const { app } = relay(createPhonePushSender({ android: fcm, ios: null }));
+    let saved: { instanceId: string; secret: string } | null = null;
+    const credentials: RelayCredentials = {
+      get: async () => saved,
+      save: async (c) => {
+        saved = c;
+      },
+      clear: async () => {
+        saved = null;
+      },
+    };
+    const base = "https://relay.example/api/push-relay/v1";
+    const calls: string[] = [];
+    const sender = createRelayPushSender({
+      url: base,
+      credentials,
+      fetch: (async (url: string, init: RequestInit) => {
+        calls.push(url.slice(base.length));
+        return app.request(url.slice(base.length), init);
+      }) as unknown as typeof fetch,
+    });
+    const iphone: PushMessage = {
+      ...msg(2),
+      to: "a1b2c3d4".repeat(8),
+      platform: "ios",
+      apns: { topic: "chat.agentes.app" },
+    };
+    const results = await sender.send([msg(1), iphone]);
+    expect(results).toEqual([
+      { token: token(1), ok: true, unregistered: false },
+      { token: iphone.to, ok: false, unregistered: false, skipped: true, error: "the push relay sends none" },
+    ]);
+    expect(fcm.sent).toEqual([msg(1)]);
+    expect(calls).toEqual(["/instances", "/send"]);
+
+    // Only iPhones: still one answered call, nothing thrown for the outbox to retry.
+    calls.length = 0;
+    expect((await sender.send([iphone]))[0]).toMatchObject({ ok: false, unregistered: false, skipped: true });
+    expect(calls).toEqual(["/send"]);
   });
 });
 

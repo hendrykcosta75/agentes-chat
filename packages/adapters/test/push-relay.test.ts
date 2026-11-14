@@ -12,6 +12,12 @@ const msg = (n: number): PushMessage => ({
   data: { orgId: "o", kind: "mention", notificationId: `n${n}` },
 });
 
+/** An iPhone's message: an APNs device token, with its app and Apple's environment unless told otherwise. */
+const iphone = (
+  n: number,
+  apns: PushMessage["apns"] = { topic: "chat.agentes.app.preview", sandbox: true },
+): PushMessage => ({ ...msg(n), to: String(n).padStart(64, "e"), platform: "ios", apns });
+
 function memoryCredentials(initial: { instanceId: string; secret: string } | null = null) {
   let saved = initial;
   const log: string[] = [];
@@ -47,6 +53,7 @@ function fakeRelay() {
   let sendStatus: { status: number; body: unknown } | null = null;
   const gone = new Set<string>();
   const busy = new Set<string>();
+  const skipping = new Set<string>();
   const json = (body: unknown, status = 200) => Response.json(body, { status });
   const handler = (async (url: string, init: RequestInit) => {
     const path = url.slice(RELAY_URL.length);
@@ -68,6 +75,8 @@ function fakeRelay() {
         if (gone.has(m.to)) return { token: m.to, ok: false, unregistered: true, error: "Unregistered" };
         if (busy.has(m.to))
           return { token: m.to, ok: false, unregistered: false, retryable: true, error: "unavailable" };
+        if (skipping.has(m.platform))
+          return { token: m.to, ok: false, unregistered: false, skipped: true, error: "this server sends no ios push" };
         return { token: m.to, ok: true, unregistered: false };
       };
       return json({ results: messages.map(resultOf) });
@@ -80,6 +89,7 @@ function fakeRelay() {
     instances,
     gone,
     busy,
+    skipping,
     block: (id: string) => blocked.add(id),
     forget: () => instances.clear(),
     failSend: (status: number, body: unknown) => {
@@ -116,16 +126,63 @@ describe("relay push sender", () => {
     expect(relay.calls.map((c) => c.path)).toEqual(["/instances", "/send", "/send"]);
   });
 
-  test("a token that can't be an FCM token answers as gone and never reaches the relay", async () => {
+  test("a token that can't be its platform's answers as gone and never reaches the relay", async () => {
     const relay = fakeRelay();
     const sender = createRelayPushSender({ url: RELAY_URL, credentials: memoryCredentials(), fetch: relay.fetch });
     const older = { ...msg(2), to: "ExponentPushToken[older-android-build]" };
-    expect(await sender.send([older, msg(1)])).toEqual([
+    const olderIphone = { ...iphone(3), to: "ExponentPushToken[older-iphone-build]" };
+    expect(await sender.send([older, msg(1), olderIphone])).toEqual([
       { token: older.to, ok: false, unregistered: true, error: "not an FCM registration token" },
       { token: msg(1).to, ok: true, unregistered: false },
+      { token: olderIphone.to, ok: false, unregistered: true, error: "not an APNs device token" },
     ]);
     const sent = relay.calls.filter((c) => c.path === "/send").flatMap((c) => c.body.messages as PushMessage[]);
     expect(sent.map((m) => m.to)).toEqual([msg(1).to]);
+  });
+
+  test("an iPhone's message carries its app, its environment and its buttons", async () => {
+    const relay = fakeRelay();
+    const sender = createRelayPushSender({ url: RELAY_URL, credentials: memoryCredentials(), fetch: relay.fetch });
+    const withButtons = { ...iphone(1), category: "device.join" };
+    // Android has neither: a category there is the app's own business, and never the relay's.
+    const results = await sender.send([withButtons, iphone(2, {}), { ...msg(3), category: "device.join" }]);
+    expect(results.map((r) => r.ok)).toEqual([true, true, true]);
+    const sent = relay.calls.filter((c) => c.path === "/send").flatMap((c) => c.body.messages as PushMessage[]);
+    expect(sent).toEqual([
+      {
+        to: iphone(1).to,
+        platform: "ios",
+        title: "Oi",
+        body: "Tudo certo?",
+        data: { orgId: "o", kind: "mention", notificationId: "n1" },
+        apns: { topic: "chat.agentes.app.preview", sandbox: true },
+        category: "device.join",
+      },
+      {
+        to: iphone(2).to,
+        platform: "ios",
+        title: "Oi",
+        body: "Tudo certo?",
+        data: { orgId: "o", kind: "mention", notificationId: "n2" },
+        apns: {},
+      },
+      {
+        to: msg(3).to,
+        platform: "android",
+        title: "Oi",
+        body: "Tudo certo?",
+        data: { orgId: "o", kind: "mention", notificationId: "n3" },
+      },
+    ]);
+  });
+
+  test("a platform the relay sends nothing to comes back skipped, the device kept", async () => {
+    const relay = fakeRelay();
+    relay.skipping.add("ios");
+    const sender = createRelayPushSender({ url: RELAY_URL, credentials: memoryCredentials(), fetch: relay.fetch });
+    expect(await sender.send([iphone(1)])).toEqual([
+      { token: iphone(1).to, ok: false, unregistered: false, skipped: true, error: "the push relay sends none" },
+    ]);
   });
 
   test("the message goes as the server would send it to Firebase", async () => {

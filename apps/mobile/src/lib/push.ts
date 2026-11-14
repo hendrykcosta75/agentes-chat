@@ -1,18 +1,33 @@
 import Constants from "expo-constants";
 import * as Device from "expo-device";
+import { File, Paths } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { authedFetch } from "./auth";
-import { createHolder, deviceBody, devicePath, quietWhileOpen, readPushData, systemToken } from "./push-payload";
+import {
+  createHolder,
+  type DeviceRegistration,
+  deviceBody,
+  devicePath,
+  fileUri,
+  latin1,
+  type ProfileFacts,
+  pushTarget,
+  quietWhileOpen,
+  readProfile,
+  readPushData,
+  systemToken,
+} from "./push-payload";
 import { accountsSharing, placeAccounts, placeKey, signedInServers } from "./server";
 import { pushPlace, serverOf } from "./server-choice";
 import { readValue, STORED, writeValue } from "./storage";
 
 /**
- * Push notifications (ADR 0035 §4, ADR 0152). The system's prompt comes only after our sheet on Conversas
+ * Push notifications (ADR 0035 §4, ADR 0152, ADR 0178). The system's prompt comes only after our sheet on Conversas
  * (`features/push`, `@agenteschat/client/lib/push-offer`) or the switch in Você; the app registers its push token
- * with the server, and removes it on sign-out. Android registers the phone's own FCM token (the server sends to
- * Firebase directly); the iPhone registers an Expo push token.
+ * with the server, and removes it on sign-out. The token is the system's own: Android's FCM token (the server
+ * sends to Firebase) and the iPhone's APNs token (the server sends to Apple), with the iPhone app's id and whether
+ * the build gets its pushes from Apple's sandbox.
  */
 
 /** A conversation on screen: a channel or a DM, or one of its threads. */
@@ -78,9 +93,37 @@ export async function pushPermission(): Promise<PushPermission> {
   }
 }
 
-function projectId(): string | undefined {
-  const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
-  return extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
+let profile: Promise<ProfileFacts | null> | null = null;
+
+/**
+ * The iPhone build's provisioning profile (`embedded.mobileprovision` in the app bundle), read once: which of
+ * Apple's push environments its token belongs to and the app's id (./push-payload.ts `pushTarget`). `null` on
+ * Android, and on an App Store or TestFlight install (it has none: production).
+ */
+function provisioningProfile(): Promise<ProfileFacts | null> {
+  if (Platform.OS !== "ios") return Promise.resolve(null);
+  profile ??= (async () => {
+    try {
+      const file = new File(fileUri(Paths.bundle.uri), "embedded.mobileprovision");
+      if (!file.exists) return null;
+      return readProfile(latin1(await file.bytes()));
+    } catch {
+      return null;
+    }
+  })();
+  return profile;
+}
+
+let tokenUploadOff = false;
+
+/**
+ * Builds that asked for an Expo push token left expo-notifications' own token upload on: with it, each launch and
+ * each new token would still go to Expo's servers. Turned off once per launch (ADR 0178: nothing goes to Expo).
+ */
+async function stopTokenUpload() {
+  if (tokenUploadOff) return;
+  tokenUploadOff = true;
+  await Notifications.setAutoServerRegistrationEnabledAsync(false).catch(() => {});
 }
 
 interface Registration {
@@ -106,12 +149,10 @@ export function registerForPush(registration: Registration): Promise<boolean> {
   return run;
 }
 
-/** This phone's push token: Android's FCM token from the system, the iPhone's Expo push token. */
+/** This phone's push token, from the system: Android's FCM token, the iPhone's APNs token. */
 async function phoneToken(): Promise<string | null> {
   try {
-    if (Platform.OS === "android") return systemToken(await Notifications.getDevicePushTokenAsync());
-    const id = projectId();
-    return (await Notifications.getExpoPushTokenAsync(id ? { projectId: id } : undefined)).data;
+    return systemToken(await Notifications.getDevicePushTokenAsync());
   } catch {
     return null;
   }
@@ -130,17 +171,20 @@ async function register({ ask, locale, token: given }: Registration): Promise<bo
     permission = s?.granted ? "granted" : "denied";
   }
   if (permission !== "granted") return false;
+  void stopTokenUpload();
   const token = given ?? (await phoneToken());
   if (!token) return false;
+  const target = pushTarget(Platform.OS, await provisioningProfile(), Constants.expoConfig);
+  const device = { token, platform: Platform.OS, locale, ...target };
   // On every server this phone is signed in to, so pushes come from all of them (ADR 0154), and as every account on
   // one (ADR 0183). The account in use goes last: on a server that still keeps a token for one person, it is the one
   // that hears it.
   const here = placeKey();
   const places = pushServers();
-  const results = await Promise.all(places.filter((p) => p !== here).map((p) => registerOn(p, token, locale)));
-  if (places.includes(here)) results.push(await registerOn(here, token, locale));
+  const results = await Promise.all(places.filter((p) => p !== here).map((p) => registerOn(p, device)));
+  if (places.includes(here)) results.push(await registerOn(here, device));
   if (!results.some(Boolean)) return false;
-  // A token this phone registered before (the system rolled it, or an Expo token from an older Android build) is
+  // A token this phone registered before (the system rolled it, or an Expo token from an older build) is
   // forgotten on the servers, so pushes don't go to a token nothing answers.
   const previous = await readValue(STORED.pushToken);
   await writeValue(STORED.pushToken, token);
@@ -158,7 +202,7 @@ const pushServers = () => {
   return list.length ? [...list] : [placeKey()];
 };
 
-async function registerOn(server: string, token: string, locale: string): Promise<boolean> {
+async function registerOn(server: string, device: DeviceRegistration): Promise<boolean> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), REGISTER_WAIT_MS);
   const res = await authedFetch(
@@ -166,7 +210,7 @@ async function registerOn(server: string, token: string, locale: string): Promis
     {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify(deviceBody(token, Platform.OS, locale, accountsSharing(server))),
+      body: JSON.stringify(deviceBody({ ...device, sharedWith: accountsSharing(server) })),
       signal: abort.signal,
     },
     server,
@@ -176,11 +220,10 @@ async function registerOn(server: string, token: string, locale: string): Promis
 }
 
 /**
- * On Android, registers again whenever FCM gives the app a new token while it runs, unless the person turned
- * notifications off. Returns the unsubscribe. (The iPhone's Expo token stays the same when Apple's changes.)
+ * Registers again whenever the system gives the app a new token while it runs (FCM and APNs may roll it), unless
+ * the person turned notifications off. Returns the unsubscribe.
  */
 export function watchPushToken(locale: () => string): () => void {
-  if (Platform.OS !== "android") return () => {};
   try {
     const sub = Notifications.addPushTokenListener((next) => {
       const token = systemToken(next);

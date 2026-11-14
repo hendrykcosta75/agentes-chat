@@ -293,7 +293,7 @@ export const legalIt: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. App per telefono e per Mac",
         blocks: [
-          "L'app per telefono invia notifiche tramite Expo, Apple e Google. Una notifica può mostrare il nome di chi ha scritto e l'inizio del messaggio, e sei tu a scegliere quali notifiche ricevere. L'app per Mac e i computer collegati mantengono l'accesso sul dispositivo. L'eliminazione del tuo account (disponibile anche nelle app) disconnette tutti i dispositivi.",
+          "L'app per telefono invia notifiche tramite Apple e Google. Una notifica può mostrare il nome di chi ha scritto e l'inizio del messaggio, e sei tu a scegliere quali notifiche ricevere. L'app per Mac e i computer collegati mantengono l'accesso sul dispositivo. L'eliminazione del tuo account (disponibile anche nelle app) disconnette tutti i dispositivi.",
         ],
       },
       {

@@ -292,7 +292,7 @@ export const legalNl: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. Telefoon- en Mac-apps",
         blocks: [
-          "De telefoonapp verstuurt meldingen via Expo, Apple en Google. Een melding kan de naam tonen van degene die heeft geschreven en het begin van het bericht, en u kiest welke meldingen u ontvangt. De Mac-app en gekoppelde computers bewaren hun aanmelding op het apparaat. Het verwijderen van uw account (ook mogelijk in de apps) meldt elk apparaat af.",
+          "De telefoonapp verstuurt meldingen via Apple en Google. Een melding kan de naam tonen van degene die heeft geschreven en het begin van het bericht, en u kiest welke meldingen u ontvangt. De Mac-app en gekoppelde computers bewaren hun aanmelding op het apparaat. Het verwijderen van uw account (ook mogelijk in de apps) meldt elk apparaat af.",
         ],
       },
       {

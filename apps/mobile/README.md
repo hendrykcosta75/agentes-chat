@@ -80,7 +80,7 @@ on expo.dev (EAS environment variables) for EAS:
 | Variable | What | Default |
 | --- | --- | --- |
 | `EXPO_PUBLIC_API_URL` | The default server. **Must be the server's `PUBLIC_URL` host** (see below). | `https://app.agentes.chat` |
-| `EAS_PROJECT_ID` | EAS project, for the iPhone's Expo push tokens. | ours (`8514d5b3-…`) |
+| `EAS_PROJECT_ID` | EAS project, for those who build with EAS. | ours (`8514d5b3-…`) |
 | `GOOGLE_SERVICES_JSON` | Path to Firebase's `google-services.json` (the Android workflow writes it from a secret): push on Android (FCM). | none |
 | `ANDROID_VERSION_CODE` | The build's version code (the Android workflow's run). | from the config |
 | `APPLE_TEAM_ID` | The Apple team that signs the iOS app and its share extension (the iOS workflow's secret). | none |
@@ -96,8 +96,14 @@ People can point the app at their own server ("Servidor: agentes.chat · Trocar"
 app's "Abrir no celular", or an `agenteschat://connect?server=…` link). The app checks `GET /api/instance` first and,
 for the same reason, uses the address the server gives there (its `PUBLIC_URL`); when that address doesn't answer from
 the phone, the server is refused with that host in the message. Switching signs out of the previous server. Pushes from
-a self-hosted server reach the iPhone app only while the Expo project keeps "enhanced push security" off, and the
-Android app through agentes.chat's push relay (`PUSH_SENDER`, ADR 0152).
+a self-hosted server reach the app from the stores, on Android and on the iPhone, through agentes.chat's push relay
+(`PUSH_SENDER`, ADR 0152, ADR 0178).
+
+Push on the iPhone comes straight from Apple (APNs), with no Expo service in between: the app registers the system's
+own device token, its bundle id and whether the build gets its pushes from Apple's sandbox, read from the profile
+that signs it (`src/lib/push.ts`). The server sends with an APNs auth key of the team that signs the app (`APNS_KEY`,
+`APNS_KEY_ID`, `APNS_TEAM_ID`, and the bundle ids in `APNS_APP_IDS`); the bundle id needs the Push Notifications
+capability, and a build made by your own team is pushed by your own server's key.
 
 Server side (not in this folder): Better Auth's Expo plugin trusts `agenteschat://`; Sign in with Apple needs
 `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, and the native iOS button sends an ID

@@ -293,7 +293,7 @@ export const legalDe: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. Smartphone- und Mac-Apps",
         blocks: [
-          "Die Smartphone-App sendet Benachrichtigungen über Expo, Apple und Google. Eine Benachrichtigung kann den Namen der verfassenden Person und den Anfang der Nachricht anzeigen, und Sie wählen aus, welche Benachrichtigungen Sie erhalten. Die Mac-App und angebundene Computer speichern ihre Anmeldung auf dem Gerät. Das Löschen Ihres Kontos (auch in den Apps möglich) meldet alle Geräte ab.",
+          "Die Smartphone-App sendet Benachrichtigungen über Apple und Google. Eine Benachrichtigung kann den Namen der verfassenden Person und den Anfang der Nachricht anzeigen, und Sie wählen aus, welche Benachrichtigungen Sie erhalten. Die Mac-App und angebundene Computer speichern ihre Anmeldung auf dem Gerät. Das Löschen Ihres Kontos (auch in den Apps möglich) meldet alle Geräte ab.",
         ],
       },
       {

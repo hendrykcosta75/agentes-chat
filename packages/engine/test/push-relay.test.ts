@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   createFakePushSender,
   createMemoryRateLimiter,
+  createPhonePushSender,
   type KeyWrapper,
   PushError,
   type PushMessage,
@@ -38,6 +39,18 @@ const token = (n: number) => `phone-${String(n).padStart(4, "0")}:APA91b${"x".re
 const msg = (n: number, extra: Partial<PushMessage> = {}): PushMessage => ({
   to: token(n),
   platform: "android",
+  title: "Acme",
+  body: "Dev asked for your approval",
+  data: { orgId: "o", kind: "approval", notificationId: `n${n}` },
+  ...extra,
+});
+
+/** An iPhone's APNs device token. */
+const iphoneToken = (n: number) => String(n).padStart(64, "c");
+
+const iphone = (n: number, extra: Partial<PushMessage> = {}): PushMessage => ({
+  to: iphoneToken(n),
+  platform: "ios",
   title: "Acme",
   body: "Dev asked for your approval",
   data: { orgId: "o", kind: "approval", notificationId: `n${n}` },
@@ -101,13 +114,43 @@ describe("relay sending", () => {
     const extra = { ...msg(1, { priority: "high" }), sound: "loud", badge: 9 } as unknown as PushMessage;
     const results = await relaySend(deps, instance, [extra, msg(2), msg(3)]);
     expect(results).toEqual([
-      { token: token(1), ok: true, unregistered: false, ticketId: "fake-ticket-1" },
+      { token: token(1), ok: true, unregistered: false },
       { token: token(2), ok: false, unregistered: true, error: "DeviceNotRegistered" },
-      { token: token(3), ok: true, unregistered: false, ticketId: "fake-ticket-2" },
+      { token: token(3), ok: true, unregistered: false },
     ]);
     expect(sender.sent[0]).toEqual(msg(1, { priority: "high" }));
     const [row] = await db.select().from(pushRelayInstances).where(eq(pushRelayInstances.id, instance.id));
     expect(row?.sent).toBe(3);
+  });
+
+  test("an iPhone's message keeps its app, its environment and its buttons, and nothing else", async () => {
+    const { instance } = await registered();
+    const sender = createFakePushSender();
+    const deps = { db, sender, rateLimiter: createMemoryRateLimiter() };
+    const full = {
+      ...iphone(1, { apns: { topic: "chat.agentes.app.preview", sandbox: true }, category: "device.join" }),
+      badge: 9,
+    } as unknown as PushMessage;
+    const plain = { ...iphone(2), apns: { sandbox: false, extra: "x" } } as unknown as PushMessage;
+    // An Android message's `apns` and `category` are dropped: Firebase gets neither.
+    const android = msg(3, { apns: { topic: "chat.agentes.app" }, category: "device.join" });
+    const results = await relaySend(deps, instance, [full, plain, iphone(4), android]);
+    expect(results.map((r) => r.ok)).toEqual([true, true, true, true]);
+    expect(sender.sent).toEqual([
+      iphone(1, { apns: { topic: "chat.agentes.app.preview", sandbox: true }, category: "device.join" }),
+      iphone(2, { apns: {} }),
+      iphone(4),
+      msg(3),
+    ]);
+  });
+
+  test("a platform the relay sends nothing to comes back skipped", async () => {
+    const { instance } = await registered();
+    const sender = createPhonePushSender({ android: createFakePushSender(), ios: null });
+    const deps = { db, sender, rateLimiter: createMemoryRateLimiter() };
+    const results = await relaySend(deps, instance, [msg(1), iphone(2)]);
+    expect(results[0]).toEqual({ token: token(1), ok: true, unregistered: false });
+    expect(results[1]).toMatchObject({ token: iphoneToken(2), ok: false, unregistered: false, skipped: true });
   });
 
   test("a malformed message refuses the whole request", async () => {
@@ -117,7 +160,15 @@ describe("relay sending", () => {
     const bad: unknown[] = [
       msg(1, { to: "not-a-token" }),
       msg(1, { to: "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]" }),
+      // An FCM token isn't an iPhone's.
       msg(1, { platform: "ios" }),
+      iphone(1, { to: "0".repeat(63) }),
+      iphone(1, { apns: { topic: "not a bundle id" } }),
+      iphone(1, { apns: { topic: 7 as never } }),
+      iphone(1, { apns: { sandbox: "yes" as never } }),
+      iphone(1, { apns: "chat.agentes.app" as never }),
+      iphone(1, { category: "has spaces" }),
+      iphone(1, { category: "x".repeat(65) }),
       msg(1, { platform: "web" as never }),
       msg(1, { title: "x".repeat(PUSH_RELAY_LIMITS.title + 1) }),
       msg(1, { body: "x".repeat(PUSH_RELAY_LIMITS.body + 1) }),

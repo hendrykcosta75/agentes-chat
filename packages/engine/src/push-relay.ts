@@ -2,15 +2,15 @@ import type { PushMessage, PushResult, PushSender, RateLimiter } from "@agentesc
 import { type Database, eq, schema, sql } from "@agenteschat/db";
 import { randomToken, safeEqual, sha256 } from "./crypto";
 import { ValidationError } from "./errors";
-import { FCM_PUSH_TOKEN } from "./push";
+import { APNS_CATEGORY, APNS_PUSH_TOKEN, apnsAppIdValid, FCM_PUSH_TOKEN } from "./push";
 
 const { pushRelayInstances } = schema;
 
 /**
- * The push relay's side (ADR 0152), on the server that holds the Android app's Firebase service account
- * (`PUSH_RELAY_SERVE`). Self-hosted installations register on their own (no account) and send their
- * Android pushes here; the relay checks and limits them and passes them to Firebase Cloud Messaging.
- * Message text is never stored or logged: only counts.
+ * The push relay's side (ADR 0152, ADR 0178), on the server that holds the phone app's Firebase service
+ * account and APNs key (`PUSH_RELAY_SERVE`). Self-hosted installations register on their own (no account)
+ * and send their phone pushes here; the relay checks and limits them and passes them to Firebase Cloud
+ * Messaging (Android) and to Apple's APNs (iPhone). Message text is never stored or logged: only counts.
  */
 
 export const PUSH_RELAY_LIMITS = {
@@ -21,7 +21,7 @@ export const PUSH_RELAY_LIMITS = {
   body: 1000,
   /** `data` as JSON, in bytes. */
   dataBytes: 2048,
-  /** Title, text and data together, in bytes: FCM takes 4 KB for the whole message, its own fields included. */
+  /** Title, text and data together, in bytes: FCM and APNs take 4 KB for the whole message, their own fields included. */
   totalBytes: 3584,
   /** Messages per installation per hour. */
   perInstance: { limit: 3000, windowMs: 3600_000 },
@@ -38,7 +38,7 @@ export type RelayInstance = typeof pushRelayInstances.$inferSelect;
 
 export interface RelayDeps {
   db: Database;
-  /** The relay's own sender: Firebase with the Android app's service account. */
+  /** The relay's own sender: Firebase with the Android app's service account, APNs with the iPhone app's key. */
   sender: PushSender;
   rateLimiter: RateLimiter;
 }
@@ -90,13 +90,31 @@ export async function authenticateRelayInstance(
   return row;
 }
 
-/** Checks one message from an installation and keeps only the fields Firebase gets. */
+/**
+ * An iPhone message's app and environment (ADR 0178). The relay's APNs sender refuses an app that isn't one
+ * of its own (`APNS_APP_IDS`), so here only the shape is checked.
+ */
+function relayApns(input: unknown, bad: (why: string) => Error): PushMessage["apns"] {
+  if (input === undefined) return undefined;
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw bad("apns must be an object");
+  const { topic, sandbox } = input as Record<string, unknown>;
+  if (topic !== undefined && (typeof topic !== "string" || !apnsAppIdValid(topic))) {
+    throw bad("apns.topic must be the app's bundle id");
+  }
+  if (sandbox !== undefined && typeof sandbox !== "boolean") throw bad("apns.sandbox must be true or false");
+  return { ...(topic ? { topic } : {}), ...(sandbox ? { sandbox: true } : {}) };
+}
+
+/** Checks one message from an installation and keeps only the fields Firebase or Apple get. */
 function relayMessage(input: unknown, index: number): PushMessage {
   const bad = (why: string) => new ValidationError(`messages.${index}: ${why}`, "invalid_request", { index });
   if (!input || typeof input !== "object" || Array.isArray(input)) throw bad("must be an object");
   const m = input as Record<string, unknown>;
-  if (m.platform !== "android") throw bad("platform must be android");
-  if (typeof m.to !== "string" || !FCM_PUSH_TOKEN.test(m.to)) throw bad("to must be an FCM registration token");
+  if (m.platform !== "android" && m.platform !== "ios") throw bad("platform must be android or ios");
+  const ios = m.platform === "ios";
+  if (typeof m.to !== "string" || !(ios ? APNS_PUSH_TOKEN : FCM_PUSH_TOKEN).test(m.to)) {
+    throw bad(ios ? "to must be an APNs device token" : "to must be an FCM registration token");
+  }
   const title = m.title;
   if (typeof title !== "string" || title.length > PUSH_RELAY_LIMITS.title) {
     throw bad(`title must be text up to ${PUSH_RELAY_LIMITS.title} characters`);
@@ -117,18 +135,24 @@ function relayMessage(input: unknown, index: number): PushMessage {
   if (m.priority !== undefined && m.priority !== "default" && m.priority !== "high") {
     throw bad("priority must be default or high");
   }
-  return {
+  const message: PushMessage = {
     to: m.to,
-    platform: "android",
+    platform: ios ? "ios" : "android",
     title,
     body,
     data: data as Record<string, unknown>,
     ...(m.priority ? { priority: m.priority as "default" | "high" } : {}),
   };
+  if (!ios) return message;
+  const apns = relayApns(m.apns, bad);
+  if (m.category !== undefined && (typeof m.category !== "string" || !APNS_CATEGORY.test(m.category))) {
+    throw bad("category must be a notification category's id");
+  }
+  return { ...message, ...(apns ? { apns } : {}), ...(m.category ? { category: m.category } : {}) };
 }
 
 /**
- * Sends an installation's messages through Firebase: one result per message, in order. The whole
+ * Sends an installation's messages through Firebase and APNs: one result per message, in order. The whole
  * request is refused when a message is malformed (`ValidationError`) or the installation is over its
  * hourly share (`RelayRateLimitError`); a phone over its own hourly share gets a final non-ok result
  * (`rate_limited`, not unregistered) while the others go.

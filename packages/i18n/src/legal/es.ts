@@ -290,7 +290,7 @@ export const legalEs: Partial<Record<LegalKind, LegalDocument>> = {
         id: "apps",
         heading: "10. Aplicaciones para teléfono y Mac",
         blocks: [
-          "La aplicación para teléfono envía notificaciones a través de Expo, Apple y Google. Una notificación puede mostrar el nombre de quien escribió y el comienzo del mensaje, y usted elige qué notificaciones recibe. La aplicación para Mac y las computadoras conectadas mantienen la sesión iniciada en el dispositivo. Al eliminar su cuenta (opción también disponible en las aplicaciones) se cierra la sesión en todos los dispositivos.",
+          "La aplicación para teléfono envía notificaciones a través de Apple y Google. Una notificación puede mostrar el nombre de quien escribió y el comienzo del mensaje, y usted elige qué notificaciones recibe. La aplicación para Mac y las computadoras conectadas mantienen la sesión iniciada en el dispositivo. Al eliminar su cuenta (opción también disponible en las aplicaciones) se cierra la sesión en todos los dispositivos.",
         ],
       },
       {
