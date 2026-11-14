@@ -2,9 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- A menu bar app: no Dock icon and no app menu, even before the Rust side sets the activation policy. -->
-  <key>LSUIElement</key>
-  <true/>
   <!-- The ready languages of @agenteschat/i18n/locale (the Mac App Store lists them): the system's own menus (text fields, sharing, dialogs) follow
        the Mac's language instead of staying in English. -->
   <key>CFBundleDevelopmentRegion</key>

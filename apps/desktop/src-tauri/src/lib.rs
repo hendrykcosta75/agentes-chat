@@ -89,37 +89,6 @@ fn is_help_page(url: &str) -> bool {
     path.starts_with("docs/")
 }
 
-/// The windows that make the app "open" like any other: while one is showing, the app has a Dock icon
-/// (with the open-window dot, clickable), even when the person took it out of the Dock.
-const APP_WINDOWS: &[&str] = &["welcome", "prefs", main_window::LABEL];
-
-/// The Dock icon: always, like Slack's (dock.rs), or, when the person turned that off, only while an app
-/// window is visible (macOS).
-pub(crate) fn sync_dock(app: &AppHandle) {
-    #[cfg(target_os = "macos")]
-    {
-        // By window, not web view: the main window holds two (the site and its cover).
-        let open = dock::shows(app)
-            || APP_WINDOWS.iter().any(|name| {
-                app.get_window(name)
-                    .and_then(|w| w.is_visible().ok())
-                    .unwrap_or(false)
-            });
-        let policy = if open {
-            tauri::ActivationPolicy::Regular
-        } else {
-            tauri::ActivationPolicy::Accessory
-        };
-        let _ = app.set_activation_policy(policy);
-        // Back in the Dock: with the person's icon (ADR 0179), not the bundle's.
-        if open {
-            app_icon::show(app);
-        }
-    }
-    #[cfg(not(target_os = "macos"))]
-    let _ = app;
-}
-
 pub(crate) fn present(app: &AppHandle, name: &str) -> Result<(), String> {
     if !WINDOWS.contains(&name) {
         return Err(format!("unknown window: {name}"));
@@ -134,9 +103,6 @@ pub(crate) fn present(app: &AppHandle, name: &str) -> Result<(), String> {
     }
     let _ = window.unminimize();
     window.show().map_err(|e| e.to_string())?;
-    if APP_WINDOWS.contains(&name) {
-        sync_dock(app);
-    }
     window.set_focus().map_err(|e| e.to_string())?;
     let _ = app.emit("window://shown", name);
     Ok(())
@@ -441,7 +407,6 @@ fn hide_window(app: AppHandle, name: String) -> Result<(), String> {
     } else {
         window.hide().map_err(|e| e.to_string())?;
     }
-    sync_dock(&app);
     Ok(())
 }
 
@@ -688,7 +653,6 @@ pub fn run() {
             workspaces::site_fetch,
             workspaces::welcome_mode_take,
             workspaces::welcome_add,
-            dock::dock_set,
             menus::app_menu_set,
             menus::context_menu,
             cover::page_ready,
@@ -724,13 +688,11 @@ pub fn run() {
             {
                 api.prevent_close();
                 let _ = window.hide();
-                sync_dock(window.app_handle());
             }
             // Welcome and Preferences really close (made again when they open), and a setup on screen ends with them.
             WindowEvent::CloseRequested { .. } if MADE_ON_OPEN.contains(&window.label()) => {
                 prepare::closed(window.app_handle(), window.label());
             }
-            WindowEvent::Destroyed if MADE_ON_OPEN.contains(&window.label()) => sync_dock(window.app_handle()),
             WindowEvent::CloseRequested { api, .. } => {
                 // The other windows are made once and only hidden; quitting goes through "Quit".
                 api.prevent_close();
@@ -750,13 +712,11 @@ pub fn run() {
                         std::thread::spawn(move || {
                             std::thread::sleep(Duration::from_millis(700));
                             let _ = window.hide();
-                            sync_dock(window.app_handle());
                         });
                         return;
                     }
                 }
                 let _ = window.hide();
-                sync_dock(window.app_handle());
             }
             WindowEvent::Moved(_) if window.label() == main_window::LABEL => window_state::remember(window, true),
             WindowEvent::Resized(_) if window.label() == main_window::LABEL => {
@@ -774,8 +734,6 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| {
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let handle = app.handle().clone();
             // Before the tray (it lists them).
             servers::load(&handle);
@@ -813,8 +771,6 @@ pub fn run() {
             if let Some(resume) = resume {
                 let _ = present(&handle, resume.window);
             }
-            // In the Dock from the start, like Slack (the popover then applies the person's choice).
-            sync_dock(&handle);
             // The app icon picked on this computer (ADR 0179).
             app_icon::show(&handle);
             Ok(())

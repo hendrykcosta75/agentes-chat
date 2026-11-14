@@ -701,7 +701,6 @@ fn front(app: &AppHandle) -> Result<(), String> {
     let window = app.get_window(LABEL).ok_or("window not found")?;
     let _ = window.unminimize();
     window.show().map_err(|e| e.to_string())?;
-    crate::sync_dock(app);
     window.set_focus().map_err(|e| e.to_string())
 }
 

@@ -451,7 +451,6 @@ export function createFakeHost(
     setAppMenu: async () => {},
     onMenuAction: () => () => {},
     thisMacListening: async () => {},
-    setDock: async () => {},
     setSiteNotify: async () => {},
     onBadge: (cb) => {
       const timer = setTimeout(() => cb({ waiting: 3, unread: 5 }), 50);

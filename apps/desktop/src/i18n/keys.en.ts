@@ -611,9 +611,6 @@ export const desktopEn = {
       notifyTitle: "Let me know when an agent asks for a folder",
       notifyBrowserTitle: "Let me know when an agent needs me in its browser",
       notifyBrowserDesc: "The request already reaches your phone and the site. This tells you here too.",
-      dockTitle: "Show in the Dock",
-      dockDesc:
-        "With the count of what waits for you. Off, the app stays in the menu bar only while no window is open.",
       menuBarTitle: "Show in the menu bar",
       notchTitle: "Show the agents in the notch",
       notchDesc: "On MacBooks with a notch: who is working shows around the camera.",

@@ -1,9 +1,9 @@
-//! The Dock, like Slack's: the icon stays while the app runs (Preferences › General can take it away, back to
-//! the menu bar only), its badge shows what waits on the person (the number, or a dot when there is only
-//! unread), and it bounces once when something new waits while the app isn't in front. Windows shows the
-//! same on the taskbar button (an overlay dot) and Linux on the launcher, where the desktop supports it.
+//! The Dock: the app is always in it, like any other app (the bundle is a regular app, never a menu bar only
+//! one, so the icon needs no switch at runtime and can be kept in the Dock). Its badge shows what waits on the
+//! person (the number, or a dot when there is only unread), and it bounces once when something new waits while
+//! the app isn't in front. Windows shows the same on the taskbar button (an overlay dot) and Linux on the
+//! launcher, where the desktop supports it.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde_json::json;
@@ -11,22 +11,10 @@ use tauri::{AppHandle, Emitter, Manager, UserAttentionType};
 
 use crate::main_window;
 
+#[derive(Default)]
 pub struct Dock {
-    /// The person's choice (the popover sends it at start and when it changes).
-    show: AtomicBool,
     /// What the badge showed last: `waiting` going up bounces the icon.
     last_waiting: Mutex<u32>,
-}
-
-impl Default for Dock {
-    fn default() -> Self {
-        Self { show: AtomicBool::new(true), last_waiting: Mutex::new(0) }
-    }
-}
-
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub fn shows(app: &AppHandle) -> bool {
-    app.state::<Dock>().show.load(Ordering::Relaxed)
 }
 
 /// What the badge says: the count (99+ past 99), a dot for unread only, nothing otherwise.
@@ -84,17 +72,6 @@ pub fn set_badge(app: &AppHandle, waiting: u32, unread: u32) {
     if more && !in_front {
         let _ = window.request_user_attention(Some(UserAttentionType::Informational));
     }
-}
-
-/// Preferences › General › "Show in the Dock".
-#[tauri::command]
-pub fn dock_set(app: AppHandle, window: tauri::Window, show: bool) -> Result<(), String> {
-    if !matches!(window.label(), "popover" | "prefs") {
-        return Err("only the app's own windows set this".into());
-    }
-    app.state::<Dock>().show.store(show, Ordering::Relaxed);
-    crate::sync_dock(&app);
-    Ok(())
 }
 
 #[cfg(test)]

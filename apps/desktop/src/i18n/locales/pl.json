@@ -562,8 +562,6 @@
       "notifyTitle": "Powiadamiaj mnie, gdy agent prosi o folder",
       "notifyBrowserTitle": "Powiadamiaj mnie, gdy agent potrzebuje mnie w swojej przeglądarce",
       "notifyBrowserDesc": "Prośba i tak trafia na twój telefon i stronę. Dzięki temu zobaczysz ją też tutaj.",
-      "dockTitle": "Pokazuj w Docku",
-      "dockDesc": "Z liczbą tego, co na ciebie czeka. Gdy wyłączone, aplikacja zostaje tylko na pasku menu, kiedy nie ma otwartego okna.",
       "menuBarTitle": "Pokazuj na pasku menu",
       "notchTitle": "Pokazuj agentów w notchu",
       "notchDesc": "Na MacBookach z notchem: wokół kamery widać, kto pracuje."
