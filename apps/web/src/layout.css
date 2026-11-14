@@ -12606,6 +12606,25 @@ html:not([data-pointer]) .sidebar__section-toggle:focus-visible {
 .sidebar__section-head > .sidebar__section-working + .ac-btn {
   margin-inline-start: calc(var(--space-2) - 2px);
 }
+/* While a header's buttons are hidden they take no room after its "working" line, so the line stands at the head's
+   end (8 from it, as a count) and not in the middle of the row; hover or focus opens their room again. They keep
+   their place in the tab order. Touch screens always show them. */
+@media (hover: hover) {
+  .sidebar__section-head:not(:hover, :has(.sidebar__section-add:is(:focus-visible, [data-state="open"])))
+    > .sidebar__section-working
+    ~ .sidebar__section-add.ac-btn {
+    width: 0;
+    min-width: 0;
+    margin-inline-start: -2px;
+    padding: 0;
+    border-width: 0;
+    overflow: hidden;
+  }
+  .sidebar__section-head:not(:hover, :has(.sidebar__section-add:is(:focus-visible, [data-state="open"])))
+    > .sidebar__section-working:not(:has(~ .sidebar__section-count)) {
+    padding-inline-end: 6px;
+  }
+}
 /*
  * Channel categories (ADR 0080). Closed, a category also keeps its unread channels in sight, not only the open
  * one (the rule above hides the rest).
