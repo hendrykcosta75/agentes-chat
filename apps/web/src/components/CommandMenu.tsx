@@ -1,19 +1,23 @@
 import { useAuthConfig, useChannels, useWikiTree } from "@agenteschat/client";
+import { AGENT_SECTIONS, AGENT_TABS, PERSONAL_AGENT_TABS } from "@agenteschat/client/lib/agent-edit";
 import { canTalk, listsAgent } from "@agenteschat/client/lib/audience";
 import { joinable } from "@agenteschat/client/lib/channel-access";
 import { setDraftFor } from "@agenteschat/client/lib/drafts";
-import { can } from "@agenteschat/client/lib/permissions";
+import { can, makesAgents } from "@agenteschat/client/lib/permissions";
 import { settingsSectionNameKey } from "@agenteschat/client/lib/personal-view";
-import { modeKey } from "@agenteschat/client/lib/workspace-mode";
+import { isPersonal, modeKey } from "@agenteschat/client/lib/workspace-mode";
 import { Avatar, CommandPalette, Icon, type PaletteItem } from "@agenteschat/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { useInviteDialog } from "@/components/invite/InviteDialog";
+import { NewChannelDialog } from "@/components/NewChannelDialog";
+import { useNewAgent } from "@/components/new-agent/NewAgentDialog";
 import { useOrg } from "@/components/org-context";
 import { MyFace } from "@/components/ProfilePhoto";
 import { useDirectory } from "@/hooks/useDirectory";
+import { type ThemePreference, useTheme } from "@/lib/theme";
 import { SETTINGS_SECTIONS } from "@/pages/settings-sections";
 
 /** ⌘K / Ctrl+K anywhere in the workspace (also when typing): opens the palette. */
@@ -25,7 +29,9 @@ export const openPalette = () => window.dispatchEvent(new Event("agentes:palette
 
 /**
  * The ⌘K palette: go to any channel, agent, person, page or settings section,
- * or ask an agent (opens its DM with the text in the composer).
+ * change something (the theme, a new channel or agent), or ask an agent (opens
+ * its DM with the text in the composer). Typing also finds each agent's own
+ * options: its tabs, its settings and "Change AI model".
  */
 export function CommandMenu() {
   const { t } = useTranslation();
@@ -35,6 +41,9 @@ export function CommandMenu() {
   const server = useAuthConfig().data;
   const navigate = useNavigate();
   const invite = useInviteDialog();
+  const newAgent = useNewAgent();
+  const theme = useTheme();
+  const [creatingChannel, setCreatingChannel] = useState(false);
   const [open, setOpen] = useState(false);
   // The wiki only when the palette is open (no request on every page).
   const wiki = useWikiTree(org.id, open);
@@ -141,22 +150,126 @@ export function CommandMenu() {
         mark: <Icon name="plus" size={16} />,
         onSelect: () => void navigate({ to: "/org/$orgId/wiki", params: { orgId }, search: { new: "" } }),
       });
+    // Each agent's own options, only for a typed query ("ada model", "instructions").
+    const agentsGroup = t("palette.agents");
+    const manages = can(org, "manage_agents");
+    // A personal workspace's bar has fewer tabs (ADR 0159); "advanced" is where its sections land, not a place to name.
+    const tabs = AGENT_TABS.filter(
+      (tab) => tab !== "advanced" && (!isPersonal(org) || (PERSONAL_AGENT_TABS as readonly string[]).includes(tab)),
+    );
+    for (const a of dir.agents) {
+      if (!listsAgent(org, a)) continue;
+      const mark = <AgentAvatar agentId={a.id} size="sm" name={a.name} />;
+      const keywords = [a.handle, t("palette.agentKeywords")].join(" ");
+      const params = { orgId, agentId: a.id };
+      // Who manages agents changes everything; its owner who thinks, its look, audience and computer (the server's rules).
+      const edits = manages || a.ownerUserId === me.user.id;
+      if (edits)
+        list.push({
+          key: `am:${a.id}`,
+          group: agentsGroup,
+          label: t("palette.agentOption", { name: a.name, what: t("palette.changeModel") }),
+          keywords: [keywords, t("palette.changeModelKeywords")].join(" "),
+          mark,
+          searchOnly: true,
+          // "Quem pensa" opens from the address (`?sec=brain`).
+          onSelect: () => void navigate({ to: "/org/$orgId/agents/$agentId", params, search: { sec: "brain" } }),
+        });
+      for (const tab of tabs)
+        list.push({
+          key: `at:${a.id}:${tab}`,
+          group: agentsGroup,
+          label: t("palette.agentOption", {
+            name: a.name,
+            what: tab === "overview" ? t("palette.agentPage") : t(`agentPage.tabs.${tab}`),
+          }),
+          keywords,
+          mark,
+          searchOnly: true,
+          onSelect: () =>
+            void navigate({
+              to: "/org/$orgId/agents/$agentId",
+              params,
+              search: { tab: tab === "overview" ? undefined : tab },
+            }),
+        });
+      if (!edits) continue;
+      for (const sec of AGENT_SECTIONS) {
+        // "Quem pensa" is the model item above; archiving is for who manages agents.
+        if (sec === "brain" || (sec === "danger" && !manages)) continue;
+        list.push({
+          key: `as:${a.id}:${sec}`,
+          group: agentsGroup,
+          label: t("palette.agentOption", { name: a.name, what: t(`agentPage.settings.${sec}`) }),
+          keywords,
+          mark,
+          searchOnly: true,
+          onSelect: () =>
+            void navigate({ to: "/org/$orgId/agents/$agentId", params, search: { tab: "settings", sec } }),
+        });
+      }
+    }
+    const settingsGroup = t("palette.settingsGroup");
     for (const s of SETTINGS_SECTIONS) {
       if (!s.allowed(org, server)) continue;
       // Every section, by the name its settings list shows (a personal workspace's About you, ADR 0159), found by its
-      // usual name too.
+      // usual name too, and by what it holds ("time zone", "key").
       const label = t(settingsSectionNameKey(org, s.id));
       const usual = t(`settings.section.${s.id}`);
       list.push({
         key: `s:${s.id}`,
-        group: goTo,
+        group: settingsGroup,
         label,
-        sub: t("palette.settings"),
-        keywords: label === usual ? s.id : `${s.id} ${usual}`,
+        keywords: [
+          s.id,
+          label === usual ? "" : usual,
+          t("palette.settingsKeywords"),
+          t(`settings.sectionText.${s.id}`, { defaultValue: "" }),
+          s.id === "usage" ? t("palette.keysKeywords") : "",
+          s.id === "account" ? t("palette.accountKeywords") : "",
+        ].join(" "),
         mark: s.id === "account" ? <MyFace size="xs" /> : <Icon name={s.icon} size={16} />,
         onSelect: () => void navigate({ to: "/org/$orgId/settings/$section", params: { orgId, section: s.id } }),
       });
     }
+    // The theme, changed right here (the one not in use now).
+    const themes: [ThemePreference, string][] = [
+      ["system", t("shell.themeSystem")],
+      ["light", t("shell.themeLight")],
+      ["dark", t("shell.themeDark")],
+    ];
+    for (const [value, name] of themes) {
+      if (value === theme.preference) continue;
+      list.push({
+        key: `th:${value}`,
+        group: settingsGroup,
+        label: t("palette.themeOption", { theme: name }),
+        keywords: [t("palette.themeKeywords"), t("palette.settingsKeywords")].join(" "),
+        mark: <Icon name="bulb" size={16} />,
+        onSelect: () => theme.setPreference(value),
+      });
+    }
+    // Things to make: a channel, an agent.
+    if (can(org, "create_channels"))
+      list.push({
+        key: "do:channel",
+        group: t("palette.actions"),
+        label: t("palette.newChannel"),
+        keywords: [t(modeKey(org, "palette.channel")), t("palette.createKeywords")].join(" "),
+        mark: <Icon name="plus" size={16} />,
+        onSelect: () => setCreatingChannel(true),
+      });
+    if (makesAgents(org))
+      list.push({
+        key: "do:agent",
+        group: t("palette.actions"),
+        label: t("shell.createAgent"),
+        keywords: [t("palette.agent"), t("palette.createKeywords")].join(" "),
+        mark: <Icon name="plus" size={16} />,
+        // One dialog for every way in (ADR 0164); outside the shell, the full form.
+        onSelect: () =>
+          newAgent ? newAgent.open() : void navigate({ to: "/org/$orgId/agents/new", params: { orgId } }),
+      });
     // Things to do, not places: the workspace's invite dialog (ADR 0090).
     if (invite && can(org, "invite_people"))
       list.push({
@@ -185,7 +298,21 @@ export function CommandMenu() {
           }),
       });
     return list;
-  }, [channels.data, wiki.data, dir.agents, dir.members, me.user.id, org, server, navigate, t, goTo, invite]);
+  }, [
+    channels.data,
+    wiki.data,
+    dir.agents,
+    dir.members,
+    me.user.id,
+    org,
+    server,
+    navigate,
+    t,
+    goTo,
+    invite,
+    newAgent,
+    theme,
+  ]);
 
   // "Pedir a um agente": the agents I can talk to, with what was typed.
   const askable = useMemo(() => dir.agents.filter((a) => canTalk(a)), [dir.agents]);
@@ -215,15 +342,18 @@ export function CommandMenu() {
   );
 
   return (
-    <CommandPalette
-      open={open}
-      onOpenChange={setOpen}
-      items={items}
-      extra={extra}
-      label={t("palette.open")}
-      placeholder={t("palette.placeholder")}
-      listLabel={t("palette.results")}
-      emptyText={(q) => t("palette.empty", { q })}
-    />
+    <>
+      <NewChannelDialog open={creatingChannel} onOpenChange={setCreatingChannel} />
+      <CommandPalette
+        open={open}
+        onOpenChange={setOpen}
+        items={items}
+        extra={extra}
+        label={t("palette.open")}
+        placeholder={t("palette.placeholder")}
+        listLabel={t("palette.results")}
+        emptyText={(q) => t("palette.empty", { q })}
+      />
+    </>
   );
 }

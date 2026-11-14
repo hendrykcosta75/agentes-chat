@@ -14,15 +14,20 @@ export interface PaletteItem {
   mark?: ReactNode;
   /** Extra words to match ("settings", the handle). */
   keywords?: string;
+  /** Shown only for a typed query (an agent's tabs, a setting's options): the open palette stays short. */
+  searchOnly?: boolean;
   onSelect: () => void;
 }
 
 const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-/** Items whose label, sub or keywords contain every word of the query (accents and case ignored). */
+/**
+ * Items whose label, sub or keywords contain every word of the query (accents and case ignored).
+ * With no query, everything but the `searchOnly` ones.
+ */
 export function filterPalette(items: PaletteItem[], query: string): PaletteItem[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
-  if (words.length === 0) return items;
+  if (words.length === 0) return items.filter((i) => !i.searchOnly);
   return items.filter((i) => {
     const hay = fold(`${i.label} ${i.sub ?? ""} ${i.keywords ?? ""}`);
     return words.every((w) => hay.includes(w));

@@ -25615,6 +25615,48 @@
   "palette.askLabel": {
     "value": "{{name}}, {{text}}"
   },
+  "palette.agents": {
+    "value": "Agents"
+  },
+  "palette.settingsGroup": {
+    "value": "Settings"
+  },
+  "palette.agentOption": {
+    "value": "{{name}} · {{what}}"
+  },
+  "palette.agentPage": {
+    "value": "Agent page"
+  },
+  "palette.changeModel": {
+    "value": "Change AI model"
+  },
+  "palette.changeModelKeywords": {
+    "value": "model ai intelligence who thinks brain plan claude codex chatgpt api effort"
+  },
+  "palette.agentKeywords": {
+    "value": "agent options settings"
+  },
+  "palette.settingsKeywords": {
+    "value": "settings preferences options"
+  },
+  "palette.keysKeywords": {
+    "value": "model ai api key plan claude codex chatgpt provider"
+  },
+  "palette.themeOption": {
+    "value": "Theme: {{theme}}"
+  },
+  "palette.themeKeywords": {
+    "value": "theme appearance light dark night mode"
+  },
+  "palette.accountKeywords": {
+    "value": "theme appearance light dark night mode language idioma"
+  },
+  "palette.newChannel": {
+    "value": "New channel"
+  },
+  "palette.createKeywords": {
+    "value": "create new add"
+  },
   "palette.empty": {
     "value": "Nothing for “{{q}}”."
   },

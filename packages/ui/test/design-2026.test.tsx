@@ -417,6 +417,16 @@ describe("command palette", () => {
     expect(filterPalette(items, "config").map((i) => i.key)).toEqual(["s1", "s2"]);
     expect(filterPalette(items, "CONFIGURACOES skills").map((i) => i.key)).toEqual(["s2"]);
     expect(filterPalette(items, "").length).toBe(4);
+    // A search-only item (an agent's tab) stays out of the open palette and shows once typed.
+    const tab: PaletteItem = {
+      key: "t1",
+      group: "Agents",
+      label: "Ada · Instructions",
+      searchOnly: true,
+      onSelect() {},
+    };
+    expect(filterPalette([...items, tab], "").map((i) => i.key)).not.toContain("t1");
+    expect(filterPalette([...items, tab], "ada instr").map((i) => i.key)).toEqual(["t1"]);
   });
   test("type, arrows, Enter goes; the query-built item comes last; nothing → empty text", async () => {
     picked.length = 0;
