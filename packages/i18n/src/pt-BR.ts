@@ -4955,7 +4955,7 @@ export const ptBR = {
       undoHere_female: "Para desfazer, vá em Ferramentas e acesso, na página da {{name}}.",
       open: "Abrir",
       routine: "Sempre nesta rotina",
-      thisRoutine: "esta rotina",
+      thisRoutine: "Esta rotina",
       noteRoutine:
         "{{routine}} faz {{actions}} sozinha de agora em diante, com qualquer valor. Fora desta rotina continua pedindo. Para desfazer: configurações da rotina.",
       doneRoutine: "Aprovado. {{routine}} não pede mais para isso.",
@@ -8681,11 +8681,11 @@ export const ptBR = {
       ownActions: "Faz sozinha",
     },
     ownActions: {
-      hint: "Cada execução faz isso nos seus apps conectados sem pedir. Qualquer outra ação neles pede aprovação antes, a não ser que o agente nunca pergunte.",
-      none: "Nos apps conectados, ela pede aprovação antes de cada ação. Para ela fazer o trabalho sozinha, diga ao agente no chat quais ações pode fazer.",
+      hint: "Cada execução faz isso nos seus apps conectados sem pedir, e as outras mudanças comuns também. Outros envios, exclusões, pagamentos e convites pedem aprovação antes. Se o agente sempre pergunta, tudo pede aprovação. Se nunca pergunta, nada pede.",
+      none: "Nos apps conectados, ela faz as mudanças comuns sem pedir, como numa conversa. Apagar, enviar, pagar, convidar e o que um admin marcou para perguntar pedem aprovação antes. Para ela enviar sozinha, diga ao agente no chat quais ações pode fazer. Se o agente sempre pergunta, tudo pede aprovação.",
       /** The one line a screen shows, with `hint` (or `none`) behind its ⓘ. */
       hintShort: "Cada execução faz isso sem pedir.",
-      noneShort: "Ela pede aprovação antes de cada ação.",
+      noneShort: "Só pede aprovação antes de apagar, enviar ou pagar.",
       remove: "Voltar a pedir antes de: {{action}}",
     },
     /** Vault keys a routine's commands may use without asking (`vault:NAME` own actions, ADR 0144 §2). */

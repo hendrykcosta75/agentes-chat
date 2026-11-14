@@ -4,12 +4,14 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  AHEAD_REFUSED,
   acceptCustomSuggestion,
   addChannelMember,
   addRunStep,
   approvalView,
   COMPOSIO_EXECUTOR,
   type CustomDeps,
+  composioMcpTool,
   connectCustomServer,
   consultationNotice,
   createAgent,
@@ -23,9 +25,11 @@ import {
   deliverNoticeToRun,
   type InvokeResult,
   insertMessage,
+  MCP_PRESETS,
   type McpConnect,
   mcpSessionOver,
   type RoutineBrief,
+  RUN_APPROVED_ACTION,
   setMemberRoles,
   type ToolContext,
   updateRoutine,
@@ -43,8 +47,32 @@ const EXEC = `composio_${COMPOSIO_EXECUTOR}`;
 const WORKBENCH = "COMPOSIO_REMOTE_WORKBENCH";
 const WHY = "The weekly summary goes to the team channel every Monday, as the person asked for.";
 
-/** A Composio-shaped server in process: its executor and its code workbench, each call kept. */
-function composioMcp() {
+/** Real actions the code's own rules call ordinary writes: a routine's own run does them with no card. */
+const WRITES = [
+  "GOOGLESHEETS_VALUES_UPDATE",
+  "HUBSPOT_UPDATE_DEAL",
+  "SALESFORCE_UPDATE_OPPORTUNITY",
+  "ASANA_UPDATE_A_TASK",
+  "GOOGLEDRIVE_CREATE_FILE_FROM_TEXT",
+];
+/** A send, a delete, a payment, an invite and one its app's entry always asks for: each still asks. */
+const RISKY = [
+  "SLACK_SEND_MESSAGE",
+  "GOOGLESHEETS_DELETE_SHEET",
+  "SQUARE_CREATE_REFUND",
+  "SLACK_INVITE_USER_TO_CHANNEL",
+  "GOOGLESHEETS_CLEAR_VALUES",
+];
+
+/** A Composio action as its connection lists it: the warning our rules for its app's entry give it. */
+function composioAction(slug: string) {
+  const way = MCP_PRESETS.find((p) => p.composio?.actions.includes(slug))?.composio;
+  if (!way) throw new Error(`no app entry lists ${slug}`);
+  return composioMcpTool(way, { slug, description: slug, inputSchema: { type: "object" }, tags: [] });
+}
+
+/** A Composio-shaped server in process: its executor, its code workbench and `actions`, each call kept. */
+function composioMcp(actions: readonly string[] = []) {
   const calls: { tool: string; args: Record<string, unknown> }[] = [];
   const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
   const build = () => {
@@ -64,6 +92,21 @@ function composioMcp() {
         return text(`ran ${args.tools.map((t) => t.tool_slug).join(", ")}`);
       },
     );
+    for (const slug of actions) {
+      const listed = composioAction(slug);
+      server.registerTool(
+        slug,
+        {
+          description: slug,
+          inputSchema: { text: z.string().optional() },
+          annotations: { destructiveHint: listed.destructiveHint ?? false },
+        },
+        async (args) => {
+          calls.push({ tool: slug, args });
+          return text("done");
+        },
+      );
+    }
     server.registerTool(
       WORKBENCH,
       { description: "Runs Python in a sandbox", inputSchema: { code_to_execute: z.string() } },
@@ -82,8 +125,8 @@ function composioMcp() {
   return { connect, calls };
 }
 
-async function world(fx: Fixture) {
-  const mcp = composioMcp();
+async function world(fx: Fixture, actions: readonly string[] = []) {
+  const mcp = composioMcp(actions);
   const deps: CustomDeps = {
     db: fx.db,
     keyWrappers: [fx.keyWrapper],
@@ -138,7 +181,12 @@ async function personRun(fx: Fixture, userId = fx.owner.id): Promise<ToolContext
 }
 
 /** The routine's scheduled background run, its brief as the server writes it when it fires. */
-async function routineRun(fx: Fixture, routineId: string, creatorUserId = fx.owner.id): Promise<ToolContext> {
+async function routineRun(
+  fx: Fixture,
+  routineId: string,
+  creatorUserId = fx.owner.id,
+  dueAt = new Date(),
+): Promise<ToolContext> {
   const brief: RoutineBrief = {
     routineId,
     routineRunId: crypto.randomUUID(),
@@ -148,7 +196,7 @@ async function routineRun(fx: Fixture, routineId: string, creatorUserId = fx.own
     access: "act",
     report: "when_new",
     trigger: "schedule",
-    dueAt: new Date().toISOString(),
+    dueAt: dueAt.toISOString(),
   };
   const msg = await insertMessage(fx.db, {
     orgId: fx.org.id,
@@ -704,13 +752,100 @@ describe("a routine's own job (routines.own_actions)", () => {
     expect(mcp.calls).toEqual([]);
   });
 
-  test("a routine with no own actions asks for every write, as before", async () => {
+  test("a routine with no own actions asks for a send", async () => {
     f = await setup();
     const { mcp, gateway } = await world(f);
     const { out, id } = await created(gateway, []);
-    expect(out.content).toContain("Every action in a connected app asks a person first.");
+    expect(out.content).toContain(
+      "Its changes in connected apps run without asking, except a send, a delete, a payment or an invite, which ask a person first.",
+    );
     asked(await invoke(gateway, await routineRun(f, id), EXEC, { ...exec("SLACK_SEND_MESSAGE"), why: WHY }));
     expect(mcp.calls).toEqual([]);
+  });
+});
+
+describe("a routine's writes at Só o arriscado", () => {
+  const app = (slug: string) => `composio_${slug}`;
+  const write = { text: "Total de ontem", why: WHY };
+
+  test("its own run does ordinary writes with no card, and its sends, deletes, payments and invites ask", async () => {
+    f = await setup();
+    const { mcp, gateway } = await world(f, [...WRITES, ...RISKY]);
+    const { id } = await created(gateway, []);
+    const run = await routineRun(f, id);
+    for (const slug of WRITES)
+      expect(answered(await invoke(gateway, run, app(slug), { text: "1" })).isError).toBeFalsy();
+    expect(mcp.calls.map((c) => c.tool)).toEqual(WRITES);
+    expect(await f.db.select().from(schema.approvals)).toEqual([]);
+    for (const slug of RISKY) asked(await invoke(gateway, run, app(slug), write));
+    expect(mcp.calls).toHaveLength(WRITES.length);
+  });
+
+  test("at Sempre perguntar every write asks", async () => {
+    f = await setup();
+    const { mcp, gateway } = await world(f, [...WRITES, ...RISKY]);
+    const { id } = await created(gateway, []);
+    await f.db.update(schema.agents).set({ approvalsLevel: "always" }).where(eq(schema.agents.id, f.agent.id));
+    const run = await routineRun(f, id);
+    for (const slug of [...WRITES, ...RISKY]) asked(await invoke(gateway, run, app(slug), write));
+    expect(mcp.calls).toEqual([]);
+  });
+
+  test("a routine whose creator no longer decides the agent's approvals, or has none, asks for a write", async () => {
+    f = await setup();
+    const { mcp, gateway } = await world(f, WRITES);
+    const { id } = await created(gateway, []);
+    const cora = await addMember(f.db, f.org.id, "member", "cora");
+    await f.db.update(schema.routines).set({ createdByUserId: cora.id }).where(eq(schema.routines.id, id));
+    asked(await invoke(gateway, await routineRun(f, id, cora.id), app("HUBSPOT_UPDATE_DEAL"), write));
+    await f.db.update(schema.routines).set({ createdByUserId: null }).where(eq(schema.routines.id, id));
+    asked(await invoke(gateway, await routineRun(f, id), app("HUBSPOT_UPDATE_DEAL"), write));
+    expect(mcp.calls).toEqual([]);
+  });
+
+  test("a run its report or a teammate's answer woke asks for a write that is not on its list", async () => {
+    f = await setup();
+    const qa = await teammate(f);
+    const { mcp, gateway } = await world(f, WRITES);
+    const { id } = await created(gateway, ["SLACK_SEND_MESSAGE"]);
+    const routine = await routineRun(f, id);
+    asked(await invoke(gateway, await reportRun(f, routine.runId), app("HUBSPOT_UPDATE_DEAL"), write));
+    asked(await invoke(gateway, await answerRun(f, routine.runId, qa.id), app("HUBSPOT_UPDATE_DEAL"), write));
+    expect(mcp.calls).toEqual([]);
+  });
+
+  test("a write a person refused ahead for its run never runs, and one they approved runs once", async () => {
+    f = await setup();
+    const { mcp, gateway } = await world(f, WRITES);
+    const { id } = await created(gateway, []);
+    const prepare = async (text: string) =>
+      asked(
+        await invoke(gateway, await personRun(f), "schedule_action", {
+          tool: app("HUBSPOT_UPDATE_DEAL"),
+          arguments: { text },
+          routine: id,
+          title: "Atualizar o negócio",
+          why: WHY,
+        }),
+      );
+    const decide = (approvalId: string, decision: "approve" | "refuse") =>
+      decideApproval({ db: f.db, pubsub: f.pubsub }, f.owner.id, f.org.id, approvalId, { decision });
+    const refused = await prepare("Perdido");
+    await decide(refused.id, "refuse");
+    const approved = await prepare("Ganho");
+    await decide(approved.id, "approve");
+    if (!refused.runAt) throw new Error("not prepared ahead");
+    const run = await routineRun(f, id, f.owner.id, refused.runAt);
+    for (const call of [
+      { name: RUN_APPROVED_ACTION, input: { id: refused.id } },
+      { name: app("HUBSPOT_UPDATE_DEAL"), input: { text: "Perdido" } },
+    ]) {
+      expect(answered(await invoke(gateway, run, call.name, call.input))).toMatchObject({ content: AHEAD_REFUSED });
+    }
+    expect(answered(await invoke(gateway, run, RUN_APPROVED_ACTION, { id: approved.id })).isError).toBeFalsy();
+    expect(mcp.calls).toEqual([{ tool: "HUBSPOT_UPDATE_DEAL", args: { text: "Ganho" } }]);
+    const [row] = await f.db.select().from(schema.approvals).where(eq(schema.approvals.id, approved.id));
+    expect(row?.executedAt).not.toBeNull();
   });
 });
 
@@ -752,6 +887,49 @@ describe('"Sempre nesta rotina": a routine\'s card keeps its kind for that routi
       ownActions: ["SLACK_SEND_MESSAGE"],
     });
     asked(await invoke(gateway, await routineRun(f, id), EXEC, { ...exec("GMAIL_SEND_EMAIL"), why: WHY }));
+  });
+
+  test("a run its report or a teammate's answer woke offers it too, with the same refusals", async () => {
+    f = await setup();
+    const qa = await teammate(f);
+    const { mcp, gateway } = await world(f);
+    const { id } = await created(gateway, ["SLACK_SEND_MESSAGE"]);
+    const routine = await routineRun(f, id);
+    const woken = await reportRun(f, routine.runId);
+    const card = asked(await invoke(gateway, woken, EXEC, { ...exec("GMAIL_SEND_EMAIL"), why: WHY }));
+    expect(card.approveAlways).toEqual({ tool: EXEC, actions: ["GMAIL_SEND_EMAIL"], routineId: id });
+    const answer = await answerRun(f, routine.runId, qa.id);
+    expect(asked(await invoke(gateway, answer, EXEC, { ...exec("GMAIL_SEND_EMAIL"), why: WHY })).approveAlways).toEqual(
+      { tool: EXEC, actions: ["GMAIL_SEND_EMAIL"], routineId: id },
+    );
+    // A deletion is never the routine's: the agent's own "Aprovar sempre" is offered instead.
+    expect(
+      asked(await invoke(gateway, woken, EXEC, { ...exec("SLACK_DELETE_MESSAGE"), why: WHY })).approveAlways,
+    ).toEqual({ tool: COMPOSIO_EXECUTOR, actions: ["SLACK_DELETE_MESSAGE"] });
+
+    await decide(card.id);
+    expect((await routineRow(id))?.ownActions).toEqual(["SLACK_SEND_MESSAGE", "GMAIL_SEND_EMAIL"]);
+    expect(await f.db.select().from(schema.approvalRules)).toEqual([]);
+    const next = await reportRun(f, (await routineRun(f, id)).runId);
+    expect(answered(await invoke(gateway, next, EXEC, exec("GMAIL_SEND_EMAIL"))).isError).toBeFalsy();
+    expect(mcp.calls.map((c) => c.args)).toContainEqual(exec("GMAIL_SEND_EMAIL"));
+  });
+
+  test("not on a run that something else joined: it is no longer the routine's job", async () => {
+    f = await setup();
+    const { gateway } = await world(f);
+    const { id } = await created(gateway, []);
+    const run = await reportRun(f, (await routineRun(f, id)).runId);
+    const joined = await insertMessage(f.db, {
+      orgId: f.org.id,
+      channelId: f.general.id,
+      threadId: run.threadRootId,
+      author: { type: "agent", agentId: f.agent.id, runId: null, hop: 0, stretchId: null },
+      body: "Manda por email para a diretoria",
+    });
+    await readJoined(f, run, joined.id);
+    const card = asked(await invoke(gateway, run, EXEC, { ...exec("GMAIL_SEND_EMAIL"), why: WHY }));
+    expect(card.approveAlways).toEqual({ tool: COMPOSIO_EXECUTOR, actions: ["GMAIL_SEND_EMAIL"] });
   });
 
   test.each([

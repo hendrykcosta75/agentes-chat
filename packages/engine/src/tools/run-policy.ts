@@ -23,8 +23,11 @@ import type { ToolDefinition } from "./types";
  *   (its `gif`, as `post_message`'s, ADR 0091 addendum 2026-11-09). Otherwise it
  *   works as the agent (ADR 0109: one permission model, the agent's own): reads, the web and the browser,
  *   internal changes people can undo (issues, memory, wiki, Drive, Vault contacts, its own branches and pull
- *   requests, its computer); every write to a connected app asks a person, except the actions its creator allowed for its job
- *   (`routines.own_actions`: the gateway lets those through, `ownJobCovers`). It reaches other agents (`ask_agent`,
+ *   requests, its computer). At `risky`, while its creator still decides the agent's approvals (`creatorDecides`), it
+ *   writes to connected apps as a person's run does: what the tool marks as asking (a send, a delete, a payment, an
+ *   invite, a tool an admin set to ask, merge, deploy and rollback) asks. Otherwise every write to a connected app
+ *   asks a person, except the actions its creator allowed for its job (`routines.own_actions`: the gateway lets those
+ *   through, `ownJobCovers`). It reaches other agents (`ask_agent`,
  *   `tell_agent`) and posts where its creator can post (`post_message`, `send_dm` to its creator): the
  *   tools hold it to its creator's rooms and agents (ADR 0053 §2, amended 2026-10-31).
  * - `routine` redoing a widget (its brief's `widget`, ADR 0135 §5): it only reads (built-in reads, connected apps'
@@ -394,6 +397,8 @@ export function toolPolicy(
   authority: RunAuthority,
   tool: PolicyTool,
   level: ApprovalsLevel = DEFAULT_APPROVALS_LEVEL,
+  /** A routine's own run whose creator still decides its agent's approvals (the gateway reads it fresh). */
+  creatorDecides = false,
 ): PolicyDecision {
   const what = toolKind(tool);
   const asks = level === "always" && asksAtAlways(what, tool);
@@ -425,7 +430,7 @@ export function toolPolicy(
     case "internal":
       return asks ? APPROVE : ALLOW;
     case "external":
-      return APPROVE;
+      return !fed && creatorDecides && level === "risky" ? ALLOW : APPROVE;
     case "mission":
       return refuse(fed ? REFUSALS.fedMission : REFUSALS.missionOnly);
     case "unknown":

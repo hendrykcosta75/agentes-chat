@@ -1412,7 +1412,7 @@ function routineAsks(level: ApprovalsLevel, place: string): string {
   const what =
     level === "always"
       ? "You are set to always ask: every change asks a person first, inside agentes.chat too (an issue, a file, a post, a command)"
-      : "Any change in a connected app asks a person first";
+      : "A send, a delete, a payment, an invite or another change in a connected app that its tool marks as asking asks a person first";
   return `${what}: an approval card in ${place}, with your reason.${level === "always" ? "" : " Merge, deploy and rollback always do."} When its instructions ask you to fix or resolve things and the fix is such a change, hand off your report first (saying what you're asking for), then call that tool with your reason: your run waits for the person's decision, so anything after it waits too.`;
 }
 
@@ -1536,7 +1536,7 @@ async function routineContext(
       ? `Approved ahead for this run: a person already approved these exact actions for this time. Do each now with run_approved_action and its id: it goes out without asking. Don't do them any other way, then report how it went.\n${listed("approved")}`
       : "",
     listed("other")
-      ? `Prepared for this run but not approved in time: do each with run_approved_action and its id. ${agent.approvalsLevel === "never" ? "It runs when you call it." : "It asks a person first, as any change in a connected app does."}\n${listed("other")}`
+      ? `Prepared for this run but not approved in time: do each with run_approved_action and its id. ${agent.approvalsLevel === "never" ? "It runs when you call it." : "It asks a person first if that change asks."}\n${listed("other")}`
       : "",
     `When it speaks: ${
       brief.report === "always"

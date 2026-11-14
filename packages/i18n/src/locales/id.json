@@ -4548,7 +4548,7 @@
       "undoHere": "Untuk membatalkannya, buka Alat dan akses di halaman {{name}}.",
       "open": "Buka",
       "routine": "Selalu di rutinitas ini",
-      "thisRoutine": "rutinitas ini",
+      "thisRoutine": "Rutinitas ini",
       "noteRoutine": "{{routine}} melakukan {{actions}} sendiri mulai sekarang, dengan nilai apa pun. Di luar rutinitas ini tetap bertanya. Untuk membatalkan: pengaturan rutinitas.",
       "doneRoutine": "Disetujui. {{routine}} tidak akan meminta ini lagi.",
       "undoRoutine": "Untuk membatalkannya, buka pengaturan rutinitas."
@@ -8037,10 +8037,10 @@
       "ownActions": "Dilakukan sendiri"
     },
     "ownActions": {
-      "hint": "Setiap jalannya melakukan ini di aplikasi terhubung kamu tanpa bertanya. Tindakan lain di sana meminta persetujuan seseorang dulu, kecuali agen diatur untuk tidak pernah bertanya.",
-      "none": "Di aplikasi terhubung, rutinitas ini meminta persetujuan seseorang sebelum setiap tindakan. Agar bisa bekerja sendiri, beri tahu agen di chat tindakan apa saja yang boleh dilakukan.",
+      "hint": "Setiap jalannya melakukan ini di aplikasi terhubung kamu tanpa bertanya, begitu juga perubahan biasa lainnya. Pengiriman, penghapusan, pembayaran, dan undangan lainnya meminta persetujuan seseorang dulu. Jika agen selalu bertanya, semuanya meminta persetujuan. Jika agen tidak pernah bertanya, tidak ada yang meminta.",
+      "none": "Di aplikasi terhubung, rutinitas ini membuat perubahan biasa tanpa bertanya, seperti di chat. Menghapus, mengirim, membayar, mengundang, dan hal yang diatur admin untuk bertanya perlu persetujuan seseorang dulu. Agar bisa mengirim sendiri, beri tahu agen di chat tindakan apa saja yang boleh dilakukan. Jika agen selalu bertanya, semuanya meminta persetujuan.",
       "hintShort": "Setiap jalannya melakukan ini tanpa bertanya.",
-      "noneShort": "Rutinitas ini meminta persetujuan seseorang sebelum setiap tindakan.",
+      "noneShort": "Rutinitas ini hanya meminta persetujuan seseorang sebelum menghapus, mengirim, atau membayar.",
       "remove": "Tanya lagi sebelum: {{action}}"
     },
     "vaultKeys": {

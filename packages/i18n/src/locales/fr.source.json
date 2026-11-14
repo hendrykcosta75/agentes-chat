@@ -11509,7 +11509,7 @@
     "value": "Always in this routine"
   },
   "approval.always.thisRoutine": {
-    "value": "this routine"
+    "value": "This routine"
   },
   "approval.always.noteRoutine": {
     "value": "{{routine}} does {{actions}} on its own from now on, with any values. Outside this routine it still asks. To undo: the routine's settings."
@@ -20206,16 +20206,16 @@
     "value": "Does on its own"
   },
   "routines.ownActions.hint": {
-    "value": "Every run does these in your connected apps without asking. Any other action there asks a person first, unless the agent never asks."
+    "value": "Every run does these in your connected apps without asking, and other ordinary changes too. Other sends, deletes, payments and invites ask a person first. If the agent always asks, everything asks. If it never asks, nothing does."
   },
   "routines.ownActions.none": {
-    "value": "In connected apps it asks a person before each action. To let it do its job on its own, tell the agent in the chat which actions it may do."
+    "value": "In connected apps it makes ordinary changes without asking, as in a chat. Deleting, sending, paying, inviting and what an admin set to ask need a person's approval first. To let it send on its own, tell the agent in the chat which actions it may do. If the agent always asks, everything asks."
   },
   "routines.ownActions.hintShort": {
     "value": "Every run does these without asking."
   },
   "routines.ownActions.noneShort": {
-    "value": "It asks a person before each action."
+    "value": "It asks a person only before deleting, sending or paying."
   },
   "routines.ownActions.remove": {
     "value": "Ask again before: {{action}}"

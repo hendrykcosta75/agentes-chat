@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, or, schema, sql } from "@agenteschat/db";
 import { type AgentActionParams, recordAgentActions } from "./agent-actions";
 import { routineRow, routineSnapshot } from "./agent-undo";
 import { agentsByHandle, currentHandles, getAgentCached } from "./agents";
+import { decidesAgentApprovals } from "./approval-rules";
 import { cancelAheadApproval, cancelableAhead } from "./approvals";
 import { canTalkTo, speakerFor } from "./audience";
 import { runAuthorityById } from "./authority";
@@ -516,7 +517,7 @@ const OWN_ACTIONS_SCHEMA = {
   maxItems: 20,
   items: { type: "string", minLength: 1, maxLength: 128 },
   description:
-    "Connected-app actions the routine's job needs, which every run then does without asking a person: the exact tool names you call (for Composio's multi-execute tool, each action's slug, like SLACK_SEND_MESSAGE). Only what the person asked the routine to do (the Slack post, the email they want sent). Any other write to a connected app follows the agent's approvals, and merge, deploy, rollback and the like can't be listed. Only the agent's owner or someone who approves its actions can set this. On update it replaces the list; [] makes every action ask again.",
+    "Connected-app actions the routine's job needs, which every run then does without asking a person: the exact tool names you call (for Composio's multi-execute tool, each action's slug, like SLACK_SEND_MESSAGE). Only what the person asked the routine to do (the Slack post, the email they want sent): its other ordinary writes (update a row, a deal, an issue) already run without asking, and its other sends, deletes, payments and invites ask. Merge, deploy, rollback and the like can't be listed. Only the agent's owner or someone who approves its actions can set this. On update it replaces the list; [] makes every action ask again.",
 };
 
 /** `keys` of `create_routine` and `update_routine`: Vault keys its runs' commands may use (`vault:NAME` own actions). */
@@ -552,8 +553,18 @@ async function ownActionsText(ctx: ToolContext, r: RoutineView) {
     keys.length > 0
       ? ` Its commands may use these Vault keys: ${keys.join(", ")}; any other key asks a person first.`
       : "";
-  return apps.length > 0
-    ? ` On its own, without asking, every run may: ${apps.join(", ")}. Any other action in a connected app asks a person first, unless a person approved its kind for good.${keysText} Tell the person exactly this.`
+  const agent = await getAgentCached(ctx.db, ctx.orgId, r.agentId);
+  const writes =
+    r.createdByUserId !== null &&
+    (await decidesAgentApprovals(ctx.db, ctx.orgId, r.createdByUserId, agent?.ownerUserId ?? null));
+  const rest = writes
+    ? "Its other changes in connected apps run without asking too, except a send, a delete, a payment or an invite, which ask a person first unless a person approved its kind for good."
+    : "Any other action in a connected app asks a person first, unless a person approved its kind for good.";
+  if (apps.length > 0) {
+    return ` On its own, without asking, every run may: ${apps.join(", ")}. ${rest}${keysText} Tell the person exactly this.`;
+  }
+  return writes
+    ? ` Its changes in connected apps run without asking, except a send, a delete, a payment or an invite, which ask a person first.${keysText} Tell the person exactly this.`
     : ` Every action in a connected app asks a person first.${keysText}`;
 }
 
@@ -643,7 +654,7 @@ export function createScheduleToolSource(deps: Omit<RoutineDeps, "db">): ToolSou
     {
       name: "create_routine",
       description:
-        'Create a routine: work you do on your own, in the background, on a schedule ("toda segunda às 9h", "dias úteis às 18h", "every hour") or when something happens (`trigger`). Each run gets `prompt` as its instructions and nobody watches it: it reports by handing its findings off to the conversation it reports to, where you then tell the people. It can do what you can (search the web, use your computer and browser, tell or ask other agents, post where the person can); changes in connected apps ask a person first, except the ones its job needs that you list in `own_actions` (the person asked for them, so setting it up approves them). That is this conversation by default; set `channel` (its name, with or without #) when the person wants it in a channel ("manda no #general"). `report` says when it speaks. Choose who performs it: when the person wants a specific other agent to do the work ("faz o @theo postar…", "have @theo send…"), set `agent` to that agent, so the routine is its own work, never yours relaying the ask each run. When the person says "when a new email arrives" or "when a new error comes in", use `trigger` (an email filter or an event), never a schedule that checks again and again; "when another service calls it" or "by webhook" is a webhook trigger. A routine runs at most every 15 minutes. Only admins or your owner can create routines; the person sees it with Undo.',
+        'Create a routine: work you do on your own, in the background, on a schedule ("toda segunda às 9h", "dias úteis às 18h", "every hour") or when something happens (`trigger`). Each run gets `prompt` as its instructions and nobody watches it: it reports by handing its findings off to the conversation it reports to, where you then tell the people. It can do what you can (search the web, use your computer and browser, tell or ask other agents, post where the person can); in connected apps its ordinary writes run without asking, and a send, a delete, a payment or an invite asks a person first, except the ones its job needs that you list in `own_actions` (the person asked for them, so setting it up approves them). That is this conversation by default; set `channel` (its name, with or without #) when the person wants it in a channel ("manda no #general"). `report` says when it speaks. Choose who performs it: when the person wants a specific other agent to do the work ("faz o @theo postar…", "have @theo send…"), set `agent` to that agent, so the routine is its own work, never yours relaying the ask each run. When the person says "when a new email arrives" or "when a new error comes in", use `trigger` (an email filter or an event), never a schedule that checks again and again; "when another service calls it" or "by webhook" is a webhook trigger. A routine runs at most every 15 minutes. Only admins or your owner can create routines; the person sees it with Undo.',
       scope: SCHEDULE_SCOPE,
       inputSchema: {
         type: "object",

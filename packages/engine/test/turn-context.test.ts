@@ -664,7 +664,9 @@ describe("a routine's background run", () => {
     const { text } = await routineRun({ access: "act", report: "always", lateMinutes: 310 });
     expect(text).toContain("What it may do: what you can do in any other run.");
     expect(text).toContain("agentes/dev/");
-    expect(text).toContain("Any change in a connected app asks a person first: an approval card in #general");
+    expect(text).toContain(
+      "A send, a delete, a payment, an invite or another change in a connected app that its tool marks as asking asks a person first: an approval card in #general",
+    );
     expect(text).toContain("When it speaks: every run.");
     expect(text).toContain("# When this run is\nDue ");
     expect(text).toContain("(UTC), 5 h 10 min late; cover everything since your last run at ");

@@ -4686,7 +4686,7 @@
       "undoHere": "Geri almak için {{name}} sayfasındaki Araçlar ve erişim bölümüne gidin.",
       "open": "Aç",
       "routine": "Bu rutinde her zaman",
-      "thisRoutine": "bu rutin",
+      "thisRoutine": "Bu rutin",
       "noteRoutine": "{{routine}} bundan sonra {{actions}} işlemini her değerle kendi başına yapar. Bu rutinin dışında sormaya devam eder. Geri almak için: rutinin ayarları.",
       "doneRoutine": "Onaylandı. {{routine}} bunu bir daha sormaz.",
       "undoRoutine": "Geri almak için rutinin ayarlarına gidin."
@@ -8253,10 +8253,10 @@
       "ownActions": "Kendisi yapar"
     },
     "ownActions": {
-      "hint": "Her çalıştırma bunları bağlı uygulamalarında sormadan yapar. Oradaki diğer her işlem, ajan hiç sormayacak şekilde ayarlanmadıkça önce bir kişinin onayını ister.",
-      "none": "Bağlı uygulamalarda her işlemden önce bir kişinin onayını ister. İşini kendisi yapması için sohbette ajana hangi işlemleri yapabileceğini söyle.",
+      "hint": "Her çalıştırma bunları ve diğer olağan değişiklikleri bağlı uygulamalarında sormadan yapar. Diğer gönderimler, silmeler, ödemeler ve davetler önce bir kişinin onayını ister. Ajan her zaman soruyorsa her şey onay ister. Hiç sormuyorsa hiçbir şey istemez.",
+      "none": "Bağlı uygulamalarda olağan değişiklikleri sohbetteki gibi sormadan yapar. Silme, gönderme, ödeme, davet etme ve bir yöneticinin sorulacak olarak ayarladığı işlemler önce bir kişinin onayını gerektirir. Kendi başına göndermesi için sohbette ajana hangi işlemleri yapabileceğini söyle. Ajan her zaman soruyorsa her şey onay ister.",
       "hintShort": "Her çalıştırma bunları sormadan yapar.",
-      "noneShort": "Her işlemden önce bir kişinin onayını ister.",
+      "noneShort": "Yalnızca silme, gönderme veya ödemeden önce bir kişinin onayını ister.",
       "remove": "Şundan önce yine sor: {{action}}"
     },
     "vaultKeys": {

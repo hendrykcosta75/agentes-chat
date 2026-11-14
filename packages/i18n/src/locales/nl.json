@@ -4702,7 +4702,7 @@
       "undoHere_female": "Ongedaan maken kan bij Tools en toegang, op de pagina van {{name}}.",
       "open": "Openen",
       "routine": "Altijd in deze routine",
-      "thisRoutine": "deze routine",
+      "thisRoutine": "Deze routine",
       "noteRoutine": "{{routine}} doet {{actions}} vanaf nu zelf, met elke waarde. Buiten deze routine blijft het vragen. Ongedaan maken: de instellingen van de routine.",
       "doneRoutine": "Goedgekeurd. {{routine}} vraagt dit niet meer.",
       "undoRoutine": "Ongedaan maken kan bij de instellingen van de routine."
@@ -8342,10 +8342,10 @@
       "ownActions": "Doet zelf"
     },
     "ownActions": {
-      "hint": "Elke run doet dit in je gekoppelde apps zonder te vragen. Elke andere actie daar vraagt eerst een persoon om goedkeuring, tenzij de agent nooit vraagt.",
-      "none": "In gekoppelde apps vraagt ze voor elke actie eerst een persoon om goedkeuring. Wil je dat ze haar werk zelf doet, vertel de agent in de chat welke acties ze mag doen.",
+      "hint": "Elke run doet dit in je gekoppelde apps zonder te vragen, en ook andere gewone wijzigingen. Andere verzendingen, verwijderingen, betalingen en uitnodigingen vragen eerst een persoon om goedkeuring. Vraagt de agent altijd, dan vraagt alles om goedkeuring. Vraagt hij nooit, dan vraagt niets erom.",
+      "none": "In gekoppelde apps doet ze gewone wijzigingen zonder te vragen, zoals in een chat. Verwijderen, versturen, betalen, uitnodigen en wat een beheerder op vragen heeft gezet, hebben eerst goedkeuring van een persoon nodig. Wil je dat ze zelf verstuurt, vertel de agent in de chat welke acties ze mag doen. Vraagt de agent altijd, dan vraagt alles om goedkeuring.",
       "hintShort": "Elke run doet dit zonder te vragen.",
-      "noneShort": "Ze vraagt voor elke actie eerst een persoon om goedkeuring.",
+      "noneShort": "Ze vraagt alleen voor verwijderen, versturen of betalen eerst een persoon om goedkeuring.",
       "remove": "Weer vragen vóór: {{action}}"
     },
     "vaultKeys": {

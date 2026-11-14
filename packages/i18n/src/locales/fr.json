@@ -4840,7 +4840,7 @@
       "undoHere_female": "Pour l'annuler, allez dans Outils et accès, sur la page de {{name}}.",
       "open": "Ouvrir",
       "routine": "Toujours dans cette routine",
-      "thisRoutine": "cette routine",
+      "thisRoutine": "Cette routine",
       "noteRoutine": "{{routine}} fait {{actions}} toute seule à partir de maintenant, avec n'importe quelle valeur. En dehors de cette routine, l'approbation reste demandée. Pour annuler : les paramètres de la routine.",
       "doneRoutine": "Approuvé. {{routine}} ne demandera plus cela.",
       "undoRoutine": "Pour l'annuler, allez dans les paramètres de la routine."
@@ -8591,10 +8591,10 @@
       "ownActions": "Fait seule"
     },
     "ownActions": {
-      "hint": "Chaque exécution fait cela dans tes apps connectées sans demander. Toute autre action dans ces apps demande d’abord l’accord d’une personne, sauf si l’agent ne demande jamais.",
-      "none": "Dans les apps connectées, elle demande l’accord d’une personne avant chaque action. Pour qu’elle fasse son travail seule, dis à l’agent dans le chat quelles actions elle peut faire.",
+      "hint": "Chaque exécution fait cela dans tes apps connectées sans demander, ainsi que les autres modifications courantes. Les autres envois, suppressions, paiements et invitations demandent d’abord l’accord d’une personne. Si l’agent demande toujours, tout demande l’accord. S’il ne demande jamais, rien ne le demande.",
+      "none": "Dans les apps connectées, elle fait les modifications courantes sans demander, comme dans un chat. Supprimer, envoyer, payer, inviter et ce qu’un admin a réglé pour demander nécessitent d’abord l’accord d’une personne. Pour qu’elle envoie seule, dis à l’agent dans le chat quelles actions elle peut faire. Si l’agent demande toujours, tout demande l’accord.",
       "hintShort": "Chaque exécution fait cela sans demander.",
-      "noneShort": "Elle demande l’accord d’une personne avant chaque action.",
+      "noneShort": "Elle demande l’accord d’une personne seulement avant de supprimer, d’envoyer ou de payer.",
       "remove": "Redemander avant : {{action}}"
     },
     "vaultKeys": {

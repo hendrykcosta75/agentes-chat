@@ -378,7 +378,7 @@ describe('"Sempre nesta rotina" on a routine\'s card', () => {
 
   test("a routine's name that isn't known reads as this routine; any other card has none", async () => {
     const pt = await routine("pt-BR");
-    expect(alwaysRoutineName(pt, { ...card, origin: null })).toBe("esta rotina");
+    expect(alwaysRoutineName(pt, { ...card, origin: null })).toBe("Esta rotina");
     expect(alwaysRoutineName(pt, card)).toBe("Resumo da semana");
     expect(alwaysRoutineName(pt, { ...card, approveAlways: { tool: "t", actions: [] } })).toBeNull();
   });

@@ -4840,7 +4840,7 @@
       "undoHere_female": "Per annullarlo, vai in Strumenti e accesso, nella pagina di {{name}}.",
       "open": "Apri",
       "routine": "Sempre in questa routine",
-      "thisRoutine": "questa routine",
+      "thisRoutine": "Questa routine",
       "noteRoutine": "{{routine}} lo fa da sola d'ora in poi, con qualsiasi valore: {{actions}}. Fuori da questa routine continua a chiedere. Per annullare: le impostazioni della routine.",
       "doneRoutine": "Approvato. {{routine}} non lo chiederà più.",
       "undoRoutine": "Per annullarlo, vai nelle impostazioni della routine."
@@ -8595,10 +8595,10 @@
       "ownActions": "Fa da sola"
     },
     "ownActions": {
-      "hint": "Ogni esecuzione fa queste azioni nelle tue app collegate senza chiedere. Qualsiasi altra azione lì chiede prima l’approvazione di una persona, a meno che l’agente non chieda mai.",
-      "none": "Nelle app collegate chiede l’approvazione di una persona prima di ogni azione. Per farle fare il suo lavoro da sola, di’ all’agente in chat quali azioni può fare.",
+      "hint": "Ogni esecuzione fa queste azioni nelle tue app collegate senza chiedere, e anche le altre modifiche comuni. Altri invii, eliminazioni, pagamenti e inviti chiedono prima l’approvazione di una persona. Se l’agente chiede sempre, tutto chiede l’approvazione. Se non chiede mai, niente la chiede.",
+      "none": "Nelle app collegate fa le modifiche comuni senza chiedere, come in una chat. Eliminare, inviare, pagare, invitare e ciò che un admin ha impostato per chiedere richiedono prima l’approvazione di una persona. Per farla inviare da sola, di’ all’agente in chat quali azioni può fare. Se l’agente chiede sempre, tutto chiede l’approvazione.",
       "hintShort": "Ogni esecuzione fa queste azioni senza chiedere.",
-      "noneShort": "Chiede l’approvazione di una persona prima di ogni azione.",
+      "noneShort": "Chiede l’approvazione di una persona solo prima di eliminare, inviare o pagare.",
       "remove": "Torna a chiedere prima di: {{action}}"
     },
     "vaultKeys": {

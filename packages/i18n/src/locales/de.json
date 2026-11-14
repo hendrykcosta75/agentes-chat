@@ -4701,7 +4701,7 @@
       "undoHere": "Zum Rückgängigmachen geh auf der Seite von {{name}} zu Tools und Zugriff.",
       "open": "Öffnen",
       "routine": "Immer in dieser Routine",
-      "thisRoutine": "diese Routine",
+      "thisRoutine": "Diese Routine",
       "noteRoutine": "{{routine}} erledigt das ab jetzt selbstständig, mit beliebigen Werten: {{actions}}. Außerhalb dieser Routine wird weiter gefragt. Rückgängig machen: in den Einstellungen der Routine.",
       "doneRoutine": "Freigegeben. {{routine}} fragt danach nicht mehr.",
       "undoRoutine": "Zum Rückgängigmachen geh in die Einstellungen der Routine."
@@ -8296,10 +8296,10 @@
       "ownActions": "Macht selbst"
     },
     "ownActions": {
-      "hint": "Jeder Lauf erledigt das in deinen verbundenen Apps, ohne zu fragen. Jede andere Aktion dort fragt zuerst eine Person, außer der Agent fragt nie.",
-      "none": "In verbundenen Apps fragt sie vor jeder Aktion eine Person. Damit sie ihre Aufgabe selbst erledigt, sag dem Agenten im Chat, welche Aktionen sie ausführen darf.",
+      "hint": "Jeder Lauf erledigt das in deinen verbundenen Apps, ohne zu fragen, und andere normale Änderungen auch. Andere Sendungen, Löschungen, Zahlungen und Einladungen fragen zuerst eine Person. Fragt der Agent immer, fragt alles. Fragt er nie, fragt nichts.",
+      "none": "In verbundenen Apps macht sie normale Änderungen, ohne zu fragen, wie in einem Chat. Löschen, Senden, Bezahlen, Einladen und was ein Admin auf Fragen gestellt hat, braucht zuerst die Freigabe einer Person. Damit sie selbst sendet, sag dem Agenten im Chat, welche Aktionen sie ausführen darf. Fragt der Agent immer, fragt alles.",
       "hintShort": "Jeder Lauf erledigt das, ohne zu fragen.",
-      "noneShort": "Sie fragt vor jeder Aktion eine Person.",
+      "noneShort": "Sie fragt eine Person nur vor dem Löschen, Senden oder Bezahlen.",
       "remove": "Wieder vorher fragen: {{action}}"
     },
     "vaultKeys": {

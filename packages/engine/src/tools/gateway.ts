@@ -492,8 +492,12 @@ const authorityOf = (ctx: ToolContext): Promise<RunAuthority | null> =>
   ctx.runId ? runAuthorityById(ctx.db, ctx.orgId, ctx.runId) : Promise.resolve(null);
 
 const ALLOWED: PolicyDecision = { action: "allow" };
-const policyFor = (authority: RunAuthority | null, tool: ToolDefinition, level = DEFAULT_APPROVALS_LEVEL) =>
-  authority ? toolPolicy(authority, tool, level) : ALLOWED;
+const policyFor = (
+  authority: RunAuthority | null,
+  tool: ToolDefinition,
+  level = DEFAULT_APPROVALS_LEVEL,
+  creatorDecides = false,
+) => (authority ? toolPolicy(authority, tool, level, creatorDecides) : ALLOWED);
 
 /**
  * A tool as a run sees it: one the policy says asks a person becomes sensitive (its card, and the
@@ -599,15 +603,16 @@ export function createToolGateway(deps: {
     known?: Map<string, ToolDefinition>,
     heldBack?: string[],
   ): Promise<ToolDefinition[]> {
-    const [keys, all, level] = await Promise.all([
+    const [keys, all, level, decides] = await Promise.all([
       grantedScopeKeys(ctx.db, ctx.orgId, ctx.agentId),
       known ?? allTools(ctx),
       approvalsLevelOf(ctx.db, ctx.orgId, ctx.agentId),
+      creatorDecides(ctx, authority),
     ]);
     return [...all.values()]
       .filter((t) => isAllowed(accessWithNeeds(keys, t).state))
       .flatMap((t) => {
-        const decision = policyFor(authority, t, level);
+        const decision = policyFor(authority, t, level, decides);
         if (decision.action !== "refuse") return [asListed(t, decision, unaskedAtNever(level, t, authority))];
         heldBack?.push(t.name);
         return [];
@@ -863,6 +868,13 @@ export function createToolGateway(deps: {
         ),
       );
     return row ?? null;
+  }
+
+  /** Whether a routine's own run has a creator who still decides its agent's approvals (`toolPolicy`). Read fresh. */
+  async function creatorDecides(ctx: ToolContext, authority: RunAuthority | null) {
+    if (authority?.kind !== "routine" || !authority.brief || !UUID.test(authority.brief.routineId)) return false;
+    const row = await routineOf(ctx, authority.brief);
+    return row?.creator ? decidesAgentApprovals(ctx.db, ctx.orgId, row.creator, row.owner) : false;
   }
 
   /** The messages a run read after its trigger, as they joined it (between steps or live: `steeredMessageIds`). */
@@ -1313,8 +1325,14 @@ export function createToolGateway(deps: {
       }
       if (tool.sensitive && tool.asksNobody?.(call.input)) tool = { ...tool, sensitive: false };
       const builtIn = isBuiltIn(tool);
+      const decides = level === "risky" && (await creatorDecides(ctx, authority));
       // A call that only looks is judged as at the default level: an agent that always asks asks for changes.
-      const decision = policyFor(authority, tool, tool.looksOnly?.(call.input) ? DEFAULT_APPROVALS_LEVEL : level);
+      const decision = policyFor(
+        authority,
+        tool,
+        tool.looksOnly?.(call.input) ? DEFAULT_APPROVALS_LEVEL : level,
+        decides,
+      );
       if (decision.action === "refuse") {
         return finish(
           { content: decision.reason, isError: true, data: { code: "tool.not_allowed", refusal: "policy" } },
@@ -1459,9 +1477,9 @@ export function createToolGateway(deps: {
           : null;
       if (mergeAlone) approves = false;
       // Approved ahead: the exact call a person approved for this routine run's slot runs like an allowed one, why
-      // or not; the one they refused never runs, whatever the agent's level.
+      // or not; the one they refused never runs, whatever the agent's level, a write its creator's run does unasked too.
       const ahead =
-        (approves || unasked) && authority?.kind === "routine" && authority.brief
+        (approves || unasked || decides) && authority?.kind === "routine" && authority.brief
           ? await aheadFor(
               ctx,
               authority.brief,
@@ -1619,12 +1637,13 @@ export function createToolGateway(deps: {
         return { type: "approval", approval: row };
       };
       if (approves) {
-        // A routine's card offers "Sempre nesta rotina" where the action can be its own: the narrower word for the
-        // same run. Not for an agent that always asks: its routine's own actions ask too.
+        // A card of a run doing a routine's job (its own run, or one its report or a teammate's answer woke:
+        // `ownJobBrief`) offers "Sempre nesta rotina" where the action can be its own: the narrower word for the same
+        // job. Not for an agent that always asks: its routine's own actions ask too.
         const own = keysAsk
           ? keysAsk
-          : level !== "always" && keysAsk === null && authority?.kind === "routine" && authority.brief
-            ? await routineKind(ctx, authority.brief, tool, call.input)
+          : keysAsk === null && ownJobBrief
+            ? await routineKind(ctx, ownJobBrief, tool, call.input)
             : null;
         return askPerson(why, own ?? remember);
       }

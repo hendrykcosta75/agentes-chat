@@ -5008,7 +5008,7 @@
       "undoHere_female": "Aby to cofnąć, przejdź do sekcji Narzędzia i dostęp na stronie agentki {{name}}.",
       "open": "Otwórz",
       "routine": "Zawsze w tej rutynie",
-      "thisRoutine": "ta rutyna",
+      "thisRoutine": "Ta rutyna",
       "noteRoutine": "{{routine}}: od teraz {{actions}} bez pytania, z dowolnymi wartościami. Poza tą rutyną nadal pyta. Aby cofnąć: ustawienia rutyny.",
       "doneRoutine": "Zatwierdzono. {{routine}}: już nie zapyta o to.",
       "undoRoutine": "Aby to cofnąć, przejdź do ustawień rutyny."
@@ -8851,10 +8851,10 @@
       "ownActions": "Robi sama"
     },
     "ownActions": {
-      "hint": "Każde uruchomienie robi to w twoich połączonych aplikacjach bez pytania. Każda inna akcja w nich najpierw prosi osobę o zgodę, chyba że agent nigdy nie pyta.",
-      "none": "W połączonych aplikacjach przed każdą akcją prosi osobę o zgodę. Żeby wykonywała swoją pracę sama, powiedz agentowi na czacie, jakie akcje może wykonywać.",
+      "hint": "Każde uruchomienie robi to w twoich połączonych aplikacjach bez pytania, a także inne zwykłe zmiany. Inne wysyłki, usunięcia, płatności i zaproszenia najpierw proszą osobę o zgodę. Jeśli agent zawsze pyta, wszystko prosi o zgodę. Jeśli nigdy nie pyta, nic nie prosi.",
+      "none": "W połączonych aplikacjach wprowadza zwykłe zmiany bez pytania, jak na czacie. Usuwanie, wysyłanie, płacenie, zapraszanie i to, co administrator ustawił na pytanie, najpierw wymaga zgody osoby. Żeby wysyłała sama, powiedz agentowi na czacie, jakie akcje może wykonywać. Jeśli agent zawsze pyta, wszystko prosi o zgodę.",
       "hintShort": "Każde uruchomienie robi to bez pytania.",
-      "noneShort": "Przed każdą akcją prosi osobę o zgodę.",
+      "noneShort": "Prosi osobę o zgodę tylko przed usuwaniem, wysyłaniem lub płaceniem.",
       "remove": "Znowu pytaj przed: {{action}}"
     },
     "vaultKeys": {

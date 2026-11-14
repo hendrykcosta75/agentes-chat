@@ -217,6 +217,14 @@ describe("run policy table", () => {
     expect(decide(routine("read"), builtIn("start_task", "sandbox:run"))).toBe("allow");
   });
 
+  test("a routine's own run writes to connected apps as a person's does at risky, while its creator decides", () => {
+    const write = app("github_create_issue", "github:issues.write");
+    expect(toolPolicy(routine("act"), write, "risky", true)).toEqual({ action: "allow" });
+    expect(toolPolicy(routine("act"), write, "risky", false)).toEqual({ action: "approve" });
+    expect(toolPolicy(routine("act"), write, "always", true)).toEqual({ action: "approve" });
+    expect(toolPolicy(reportWoke, write, "risky", true)).toEqual({ action: "approve" });
+  });
+
   test("connected tools with built-in names keep their external policy", () => {
     expect(exposedToolName("permission", "prompt")).toBe("permission_prompt");
     expect(exposedToolName("start", "task")).toBe("start_task");

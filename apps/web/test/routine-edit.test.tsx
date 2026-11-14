@@ -102,14 +102,16 @@ describe("Rotinas: editar, duplicar, apagar", () => {
     const page = screen().getByRole("dialog", { name: "Resumo da semana" });
     expect(within(page).getByRole("list", { name: "Faz sozinha" }).textContent).toBe("Enviar mensagem (Slack)");
     expect(shownText(page)).toContain("Cada execução faz isso sem pedir.");
-    expect(hintOf("Faz sozinha", page).text).toContain("Qualquer outra ação neles pede aprovação antes");
+    expect(hintOf("Faz sozinha", page).text).toContain(
+      "Outros envios, exclusões, pagamentos e convites pedem aprovação antes",
+    );
     await click(within(page).getByRole("button", { name: "Fechar detalhes" }));
     await settle(3);
     await click(screen().getByRole("button", { name: "Nova rotina" }));
     await settle(3);
     const fresh = screen().getByRole("dialog", { name: "Nova rotina" });
-    expect(shownText(fresh)).toContain("Ela pede aprovação antes de cada ação.");
-    expect(hintOf("Faz sozinha", fresh).text).toContain("Nos apps conectados, ela pede aprovação antes de cada ação");
+    expect(shownText(fresh)).toContain("Só pede aprovação antes de apagar, enviar ou pagar.");
+    expect(hintOf("Faz sozinha", fresh).text).toContain("Nos apps conectados, ela faz as mudanças comuns sem pedir");
   });
 
   test("nothing changed: Salvar just closes", async () => {

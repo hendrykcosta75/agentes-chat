@@ -4834,7 +4834,7 @@
       "undoHere": "Para deshacerlo, ve a Herramientas y acceso, en la página de {{name}}.",
       "open": "Abrir",
       "routine": "Siempre en esta rutina",
-      "thisRoutine": "esta rutina",
+      "thisRoutine": "Esta rutina",
       "noteRoutine": "{{routine}} hace {{actions}} por su cuenta a partir de ahora, con cualquier valor. Fuera de esta rutina sigue preguntando. Para deshacerlo: la configuración de la rutina.",
       "doneRoutine": "Aprobado. {{routine}} no volverá a pedir esto.",
       "undoRoutine": "Para deshacerlo, ve a la configuración de la rutina."
@@ -8539,10 +8539,10 @@
       "ownActions": "Hace por su cuenta"
     },
     "ownActions": {
-      "hint": "Cada ejecución hace esto en tus apps conectadas sin preguntar. Cualquier otra acción en ellas pide aprobación antes, salvo que el agente no pregunte nunca.",
-      "none": "En las apps conectadas pide aprobación antes de cada acción. Para que haga su trabajo por su cuenta, dile al agente en el chat qué acciones puede hacer.",
+      "hint": "Cada ejecución hace esto en tus apps conectadas sin preguntar, y también otros cambios comunes. Otros envíos, borrados, pagos e invitaciones piden aprobación antes. Si el agente siempre pregunta, todo pide aprobación. Si nunca pregunta, nada la pide.",
+      "none": "En las apps conectadas hace los cambios comunes sin preguntar, como en un chat. Borrar, enviar, pagar, invitar y lo que un admin marcó para preguntar piden aprobación antes. Para que envíe por su cuenta, dile al agente en el chat qué acciones puede hacer. Si el agente siempre pregunta, todo pide aprobación.",
       "hintShort": "Cada ejecución hace esto sin preguntar.",
-      "noneShort": "Pide aprobación antes de cada acción.",
+      "noneShort": "Solo pide aprobación antes de borrar, enviar o pagar.",
       "remove": "Volver a preguntar antes de: {{action}}"
     },
     "vaultKeys": {
