@@ -183,6 +183,7 @@ import type {
   StartChoice,
   StatusInput,
   StorageMigration,
+  TaskManagerView,
   TeamProposalCard,
   ThreadAction,
   ThreadCreateInput,
@@ -6475,20 +6476,28 @@ export const TASK_MANAGER_POLL_MS = 3_000;
 
 /**
  * The task manager (ADR 0128): what the agents are doing now, what each one uses, each agent's last hour and what
- * ended since `since` (default: the last 24 h). Asked again every `pollMs` while shown.
+ * ended since `since` (default: the last 24 h). Asked again every `pollMs` while shown. `doneToday` also asks the
+ * count of tasks done since `since`, for the screen that shows it.
  */
 export function useTaskManager(
   orgId: string,
-  options: { since?: string; enabled?: boolean; pollMs?: number | false } = {},
+  options: { since?: string; enabled?: boolean; pollMs?: number | false; doneToday?: boolean } = {},
 ) {
   const api = useApi();
+  const qc = useQueryClient();
+  const since = options.since ?? null;
+  const counted = options.doneToday ?? false;
   return useQuery({
-    queryKey: [...keys.taskManager(orgId), options.since ?? null],
+    queryKey: [...keys.taskManager(orgId), since, counted],
     queryFn: () => {
       const working = part(api, "working");
       if (!working.taskManager) throw new Error("This server has no task manager yet");
-      return working.taskManager(orgId, options.since);
+      return working.taskManager(orgId, options.since, counted);
     },
+    // The counted answer holds everything the other one does, so a screen opened from the task manager shows it at once.
+    placeholderData: counted
+      ? undefined
+      : () => qc.getQueryData<TaskManagerView>([...keys.taskManager(orgId), since, true]),
     enabled: (options.enabled ?? true) && Boolean(api.working?.taskManager),
     staleTime: 1_000,
     refetchInterval: options.pollMs ?? TASK_MANAGER_POLL_MS,

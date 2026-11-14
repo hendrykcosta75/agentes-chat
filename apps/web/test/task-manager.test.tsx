@@ -400,7 +400,10 @@ describe("the task manager page", () => {
     await open(state, "task-manager");
     expect(screen().getByRole("heading", { level: 1 }).textContent).toBe("Gerenciador de tarefas");
     expect(document.querySelector(".tm-sum")?.textContent).toBe("3 trabalhando1 espera você");
-    expect(state.calls.find((c) => c.method === "working.taskManager")?.args[0]).toBe(ORG_ID);
+    const calls = state.calls.filter((c) => c.method === "working.taskManager");
+    expect(calls.length).toBeGreaterThan(0);
+    // The page shows today's count, so every call of it asks for one.
+    expect(calls.every((c) => c.args[0] === ORG_ID && c.args[2] === true)).toBe(true);
 
     // Todos first and chosen, then each agent with its tasks and who waits on it, each with its line.
     const cards = [...document.querySelectorAll<HTMLElement>(".tm-card")];
@@ -1010,6 +1013,10 @@ describe("an agent's tasks beside its DM", () => {
     const state = withDm({ taskManager: view });
     await open(state, `dm/agent/${ADA_ID}`);
     const pill = screen().getByRole("button", { name: PILL });
+    // The pill and its panel count what ended themselves: the conversation never asks for today's count.
+    const calls = state.calls.filter((c) => c.method === "working.taskManager");
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((c) => c.args[2] === false)).toBe(true);
     expect(pill.closest(".channel__header")).toBeTruthy();
     expect(pill.getAttribute("aria-expanded")).toBe("false");
     // The words on a computer; on a phone (tasks.css) the counts alone, so her name keeps the header's room.

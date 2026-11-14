@@ -115,7 +115,7 @@ function TaskManager() {
   const { t } = useTranslation();
   const look = useEmptyLook();
   const meId = useMeId();
-  const tasks = useTasksToday();
+  const tasks = useTasksToday({ doneToday: true });
   const pull = usePullRefresh(tasks.refetch);
   const now = useNow(1000);
   // Tasks being stopped from their screens read "Parando…" here too.

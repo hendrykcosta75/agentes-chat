@@ -377,8 +377,10 @@ export function createHttpApi(options: TransportOptions = {}): HttpApi {
     },
     working: {
       list: async (orgId) => (await request<{ runs: WorkingRun[] }>(`${org(orgId)}/active-runs`)).runs,
-      taskManager: (orgId, since) =>
-        request<TaskManagerView>(`${org(orgId)}/task-manager`, { query: since ? { since } : {} }),
+      taskManager: (orgId, since, doneToday) =>
+        request<TaskManagerView>(`${org(orgId)}/task-manager`, {
+          query: { since: since || undefined, doneToday: doneToday ? "true" : undefined },
+        }),
       taskSteps: (orgId, runId) => request<TaskSteps>(`${org(orgId)}/task-manager/${enc(runId)}/steps`),
       continueTasks: (orgId, runIds) =>
         request<{ continued: number }>(`${org(orgId)}/task-manager/continue`, { json: { runIds } }),

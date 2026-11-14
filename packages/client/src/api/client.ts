@@ -1944,7 +1944,7 @@ export interface ApiClient {
   working?: {
     list(orgId: string): Promise<WorkingRun[]>;
     /** The task manager (ADR 0128): tasks now, what each uses, each agent's last hour, what ended since `since`. */
-    taskManager?(orgId: string, since?: string): Promise<TaskManagerView>;
+    taskManager?(orgId: string, since?: string, doneToday?: boolean): Promise<TaskManagerView>;
     /** A task's steps for "Ver passos", to whoever sees it in the task manager (no inputs, no outputs). */
     taskSteps?(orgId: string, runId: string): Promise<TaskSteps>;
     /** Continuar agora on runs paused near a limit (`wait.canContinue`). */

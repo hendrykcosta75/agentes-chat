@@ -163,6 +163,11 @@ describe("one line a row", () => {
     expect(screen).toContain("const listed = computersBesides(computers, causes);");
     expect(screen).toContain("{listed.map((m, i) => (");
     expect(screen).toContain('t("taskManager.capacity.today", {');
+    // Today's count is asked by this screen alone: an agent's tasks, a task and a DM's header count what ended.
+    expect(screen).toContain("useTasksToday({ doneToday: true })");
+    for (const other of ["TaskScreen.tsx", "AgentTasksScreen.tsx", "AgentTasksButton.tsx"])
+      expect(read(other)).not.toContain("doneToday: true");
+    expect(read("hooks.ts")).toContain("doneToday: options.doneToday ?? false,");
     expect(screen).toContain('<OneLine title={title} line={line} variant="subhead" />');
     for (const way of [
       'router.push("/usage")',

@@ -97,3 +97,14 @@ test("Continuar agora on several: needs run ids; a run no longer paused is skipp
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ continued: 0 });
 });
+
+test("the task manager counts today's done tasks only when asked", async () => {
+  t = await createTestServer();
+  const owner = browser(t);
+  await signUp(owner, "owner@example.com");
+  const { orgId } = await seedOrg(owner);
+  const view = async (query: string) =>
+    (await (await owner(`/api/app/organizations/${orgId}/task-manager${query}`)).json()) as { doneToday?: number };
+  expect("doneToday" in (await view(""))).toBe(false);
+  expect((await view("?doneToday=true")).doneToday).toBe(0);
+});

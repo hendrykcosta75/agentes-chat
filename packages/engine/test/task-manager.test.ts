@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eq, schema, sql } from "@agenteschat/db";
+import { countQueries, eq, schema, sql } from "@agenteschat/db";
 import {
   addChannelMember,
   addRunStep,
@@ -523,7 +523,7 @@ describe("the task manager", () => {
     f = await setup();
     await ask("@dev arruma o link");
     const outsider = await addMember(f.db, f.org.id, "member", "caio");
-    const view = await taskManager(f.db, outsider.id, f.org.id);
+    const view = await taskManager(f.db, outsider.id, f.org.id, { doneToday: true });
     expect(view.tasks).toHaveLength(0);
     expect(view.doneToday).toBe(0);
   });
@@ -537,11 +537,23 @@ describe("the task manager", () => {
           where status not in ('done', 'failed')`,
       );
     }
-    const view = await taskManager(f.db, f.owner.id, f.org.id);
+    const view = await taskManager(f.db, f.owner.id, f.org.id, { doneToday: true });
     expect(view.ended).toHaveLength(50);
     expect(view.doneToday).toBe(51);
     const outsider = await addMember(f.db, f.org.id, "member", "caio");
-    expect((await taskManager(f.db, outsider.id, f.org.id)).doneToday).toBe(0);
+    expect((await taskManager(f.db, outsider.id, f.org.id, { doneToday: true })).doneToday).toBe(0);
+  });
+
+  test("done today only when asked: a caller that doesn't ask gets no count and runs no count query", async () => {
+    f = await setup();
+    await ask("@dev resumo");
+    await f.db.execute(sql`update ${schema.agentRuns} set status = 'done', finished_at = now()`);
+    const plain = await countQueries(() => taskManager(f.db, f.owner.id, f.org.id));
+    const counted = await countQueries(() => taskManager(f.db, f.owner.id, f.org.id, { doneToday: true }));
+    expect("doneToday" in plain.result).toBe(false);
+    expect(counted.result.doneToday).toBe(1);
+    expect(counted.result.ended).toEqual(plain.result.ended);
+    expect(counted.queries).toBe(plain.queries + 1);
   });
 
   test("a task's steps: what each call was, never its input; only for who sees the task", async () => {

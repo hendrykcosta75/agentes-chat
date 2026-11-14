@@ -239,8 +239,11 @@ export interface TaskManagerView {
   followUps: PendingReturn[];
   /** The returns canceled since `since` ("Terminadas hoje"), the latest first. */
   canceledFollowUps: CanceledReturn[];
-  /** The caller's tasks done since `since`, all of them (`ended` stops at `TASK_MANAGER_ENDED_MAX`). */
-  doneToday: number;
+  /**
+   * The caller's tasks done since `since`, all of them (`ended` stops at `TASK_MANAGER_ENDED_MAX`). Only when asked
+   * (`doneToday: true`): a count over every finished run, which callers polling for the tasks alone never show.
+   */
+  doneToday?: number;
 }
 
 type Row = {
@@ -646,7 +649,7 @@ export async function taskManager(
   db: Database,
   userId: string,
   orgId: string,
-  options: { since?: Date; now?: Date } = {},
+  options: { since?: Date; now?: Date; doneToday?: boolean } = {},
 ): Promise<TaskManagerView> {
   const membership = await requireActiveMembership(db, userId, orgId);
   const manages = can(membership, "manage_agents");
@@ -659,7 +662,7 @@ export async function taskManager(
     openAsks(db, orgId),
     pendingReturns(db, userId, orgId, { managesAgents: manages }),
     canceledReturns(db, userId, orgId, since),
-    doneSince(db, userId, orgId, manages, since),
+    options.doneToday ? doneSince(db, userId, orgId, manages, since) : undefined,
   ]);
   const delegations = await delegationsOf(db, userId, orgId, active);
   const { edges, waking } = asks;
@@ -747,7 +750,7 @@ export async function taskManager(
     activity: await agentActivity(db, orgId, now),
     followUps,
     canceledFollowUps,
-    doneToday,
+    ...(doneToday === undefined ? {} : { doneToday }),
   };
 }
 

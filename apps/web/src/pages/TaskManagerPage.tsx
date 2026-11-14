@@ -132,7 +132,7 @@ export function TaskManagerPage({
   const { org, me } = useOrg();
   const dir = useDirectory(org.id);
   const look = useRightHandLook();
-  const view = useTaskManager(org.id, { since: todayStart() });
+  const view = useTaskManager(org.id, { since: todayStart(), doneToday: true });
   const now = useNow(1_000);
   const programText = useProgramText();
   const { stop, stopping, said } = useTaskStop();

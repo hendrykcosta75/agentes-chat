@@ -4274,9 +4274,11 @@ export function createFakeApi(state: FakeState = seedState(), options: { seed?: 
       ? {
           working: {
             list: async () => [],
-            taskManager: async (orgId: string, since?: string) => {
-              state.calls.push({ method: "working.taskManager", args: [orgId, since] });
-              return structuredClone(state.taskManager as TaskManagerView);
+            taskManager: async (orgId: string, since?: string, doneToday?: boolean) => {
+              state.calls.push({ method: "working.taskManager", args: [orgId, since, doneToday] });
+              const view = structuredClone(state.taskManager as TaskManagerView);
+              if (!doneToday) delete view.doneToday;
+              return view;
             },
             taskSteps: async (orgId: string, runId: string) => {
               state.calls.push({ method: "working.taskSteps", args: [orgId, runId] });

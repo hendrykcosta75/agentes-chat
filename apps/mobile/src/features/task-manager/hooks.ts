@@ -22,14 +22,15 @@ const NO_STOPS: ReadonlySet<string> = new Set();
 /**
  * The task manager with what ended today (ADR 0128), asked again while this screen is on top: every screen that
  * shows it (the list, a task, an agent's tasks, Agentes' row, a DM's header) reads the same entry, so moving between
- * them is instant.
+ * them is instant. `doneToday` (the list's "done today") asks the count too, in an entry the others start from.
  */
-export function useTasksToday(options: { enabled?: boolean; pollMs?: number } = {}) {
+export function useTasksToday(options: { enabled?: boolean; pollMs?: number; doneToday?: boolean } = {}) {
   const orgId = useOrgId();
   const focused = useIsFocused();
   return useTaskManager(orgId, {
     since: todayStart(),
     enabled: (options.enabled ?? true) && focused,
+    doneToday: options.doneToday ?? false,
     ...(options.pollMs ? { pollMs: options.pollMs } : {}),
   });
 }
