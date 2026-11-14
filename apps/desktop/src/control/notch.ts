@@ -34,7 +34,9 @@ export interface NotchHelp {
 
 /**
  * What the notch shows: a person needed wins, even paused (as the tray's
- * dot); then paused; then work; nothing going on hides it.
+ * dot); then paused, while work still goes on; then work. Nothing going on
+ * hides it, paused or not: the island takes room in the menu bar only for
+ * activity.
  */
 export interface NotchState {
   kind: "idle" | "working" | "needs" | "paused";
@@ -102,7 +104,7 @@ export function notchStateOf(homes: readonly NotchHome[], now = Date.now()): Not
     }
   }
   const paused = homes.some((h) => h.status?.paused.paused);
-  const kind = help.length > 0 ? "needs" : paused ? "paused" : work.length > 0 ? "working" : "idle";
+  const kind = help.length > 0 ? "needs" : work.length === 0 ? "idle" : paused ? "paused" : "working";
   return { kind, work, help };
 }
 
