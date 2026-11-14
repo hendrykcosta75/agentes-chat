@@ -13,7 +13,7 @@ import { ConflictError, ForbiddenError, NotFoundError } from "./errors";
 import { publishChannelEvent, publishMessageCreated, publishRouted } from "./events";
 import type { Judge } from "./judge";
 import { getMessage, insertMessage, type Message, messageView } from "./messages";
-import { can, type Membership } from "./organizations";
+import { can, type Membership, requireActiveMembership } from "./organizations";
 import { type RouterDeps, routeMessage } from "./router";
 import { bodyCode } from "./run-tools";
 import { type AgentRun, NO_AI, replyThreadOf } from "./runs";
@@ -380,12 +380,17 @@ export async function answerNow(
 ): Promise<{ runs: Answering }> {
   const message = await getMessage(deps.db, orgId, messageId);
   if (!message || message.deletedAt) throw new NotFoundError("Message not found");
-  const { membership } = await requireChannelAccess(deps.db, userId, orgId, message.channelId);
+  const usage = message.authorType === "agent" ? usagePauseCardOf(message.meta) : null;
+  // A long-work pause card may sit in an agents' DM (the paused run answers another agent), which no person is a
+  // member of: people open it from where they asked. Who may press it is the run's rule alone (`mayStopRun`), as
+  // for its "Don't run it" (`cancelRun`) and the task manager's line (`continuePausedRuns`).
+  const membership = usage
+    ? await requireActiveMembership(deps.db, userId, orgId)
+    : (await requireChannelAccess(deps.db, userId, orgId, message.channelId)).membership;
   // Refused here, first: a key saved earlier reads as ready, and the restarted run would only be refused again.
   await assertCanWork(deps.db, orgId);
   const paused = message.authorType === "agent" ? stretchCardOf(message.meta) : null;
   if (paused) return continueStretch(deps, userId, membership, message, paused);
-  const usage = message.authorType === "agent" ? usagePauseCardOf(message.meta) : null;
   if (usage) return continueUsagePause(deps, userId, membership, message, usage);
   const card = noAiCardOf(message);
   const found = await answeringRuns(deps.db, message, card);
