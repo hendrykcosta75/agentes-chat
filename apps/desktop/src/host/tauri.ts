@@ -104,7 +104,6 @@ export function createTauriHost(): Host {
     setAppMenu: (labels) => invoke<void>("app_menu_set", { labels }),
     onMenuAction: (cb) => subscribe<MenuAction>("menu://action", cb),
     thisMacListening: () => invoke<void>("this_mac_listening"),
-    setDock: (show) => invoke<void>("dock_set", { show }),
     setSiteNotify: (on) => invoke<void>("notify_site_set", { on }),
     onBadge: (cb) => subscribe<BadgeCounts>("badge://counts", cb),
     localServer: () => invoke<LocalServerStatus>("local_server_status"),

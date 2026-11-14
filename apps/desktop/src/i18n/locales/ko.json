@@ -547,8 +547,6 @@
       "notifyTitle": "에이전트가 폴더를 요청하면 알림 받기",
       "notifyBrowserTitle": "에이전트가 브라우저에서 나를 찾으면 알림 받기",
       "notifyBrowserDesc": "요청은 이미 휴대폰과 사이트로 가요. 이 설정을 켜면 여기서도 알려 드려요.",
-      "dockTitle": "Dock에 표시",
-      "dockDesc": "나를 기다리는 일의 개수와 함께 표시해요. 끄면 열린 창이 없을 때 메뉴 막대에만 남아요.",
       "menuBarTitle": "메뉴 막대에 표시",
       "notchTitle": "노치에 에이전트 표시",
       "notchDesc": "노치가 있는 MacBook에서 작업 중인 에이전트를 카메라 주변에 보여 줘요."

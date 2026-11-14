@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useHost, useSnapshot, useStore } from "../../app";
 import { BROWSER_NOTIFY_PREF } from "../../control/browser";
-import { DOCK_PREF, MENU_BAR_PREF, menuBarShown } from "../../control/dock";
+import { MENU_BAR_PREF, menuBarShown } from "../../control/dock";
 import { NOTCH_PREF } from "../../control/notch";
 import { SITE_NOTIFY_PREF } from "../../control/notify";
 import { unpairedWorkspaces } from "../../control/pair";
@@ -40,12 +40,11 @@ export function General() {
   const [notifyBrowser, setNotifyBrowser] = usePref(BROWSER_NOTIFY_PREF, false);
   // Off by default: the window only exists while it's on.
   const [notch, setNotch] = usePref(NOTCH_PREF, false);
-  const [dock, setDock] = usePref(DOCK_PREF, true);
   const [menuBar, setMenuBar] = usePref<boolean | null>(MENU_BAR_PREF, null);
   const [language, setLanguage] = usePref<AppLocale | "auto">(LOCALE_PREF, "auto");
   const [leaving, setLeaving] = useState<Home | null>(null);
   const [busy, setBusy] = useState(false);
-  const iconShown = menuBarShown(menuBar, dock, works || local.run);
+  const iconShown = menuBarShown(menuBar, works || local.run);
   useEffect(() => {
     void host.setTrayVisible(iconShown).catch(() => {});
   }, [host, iconShown]);
@@ -95,19 +94,6 @@ export function General() {
     }
   };
 
-  /** The app keeps the Dock icon or the menu bar icon: turning one off turns the other on. */
-  const showDock = (on: boolean) => {
-    setDock(on);
-    if (!on) setMenuBar(true);
-    host.setDock(on).catch(() => {
-      setDock(!on);
-      toast(t("desktop.common.error"), "alert");
-    });
-  };
-  const showMenuBar = (on: boolean) => {
-    setMenuBar(on);
-    if (!on && !dock) showDock(true);
-  };
   // Open at login has an ⓘ only where it changes something: agentes.chat running here, or agents working here.
   const launchHint = local.run || works;
   const launchRow = (
@@ -245,19 +231,11 @@ export function General() {
           </>
         )}
         {mac && (
-          <>
-            <PrefRow
-              title={t("desktop.prefs.general.dockTitle")}
-              hint={hintFor(t, t("desktop.prefs.general.dockTitle"), t("desktop.prefs.general.dockDesc"))}
-              htmlFor="dock"
-              end={<Switch id="dock" aria-describedby="dock-hint" checked={dock} onCheckedChange={showDock} />}
-            />
-            <PrefRow
-              title={t("desktop.prefs.general.menuBarTitle")}
-              htmlFor="menu-bar"
-              end={<Switch id="menu-bar" checked={iconShown} onCheckedChange={showMenuBar} />}
-            />
-          </>
+          <PrefRow
+            title={t("desktop.prefs.general.menuBarTitle")}
+            htmlFor="menu-bar"
+            end={<Switch id="menu-bar" checked={iconShown} onCheckedChange={setMenuBar} />}
+          />
         )}
         {mac && works && (
           <PrefRow

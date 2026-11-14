@@ -164,8 +164,6 @@ describe("desktop strings", () => {
       "prefs.general.launchTitle",
       "prefs.general.notifySiteTitle",
       "prefs.general.notifySiteDesc",
-      "prefs.general.dockTitle",
-      "prefs.general.dockDesc",
       "prefs.general.menuBarTitle",
       ...leaves(desktopEn.prefs.updates).map((k) => `prefs.updates.${k}`),
     ];

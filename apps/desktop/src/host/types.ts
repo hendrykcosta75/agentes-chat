@@ -173,8 +173,6 @@ export interface Host {
   onMenuAction(cb: (action: MenuAction) => void): () => void;
   /** The popover listens for the site's requests now (requests sent before that wait, main_window.rs). */
   thisMacListening(): Promise<void>;
-  /** Preferences → "Show in the Dock" (dock.rs): off, the app lives in the menu bar while no window shows. */
-  setDock(show: boolean): Promise<void>;
   /** Preferences › "Let me know about messages and requests": whether the site's notifications show. */
   setSiteNotify(on: boolean): Promise<void>;
   /** The Dock's counts whenever the site changes them. */

@@ -547,8 +547,6 @@
       "notifyTitle": "Beri tahu aku saat agen meminta folder",
       "notifyBrowserTitle": "Beri tahu aku saat agen membutuhkanku di browsernya",
       "notifyBrowserDesc": "Permintaannya sudah sampai ke ponselmu dan situs. Ini memberi tahumu di sini juga.",
-      "dockTitle": "Tampilkan di Dock",
-      "dockDesc": "Dengan jumlah yang menunggumu. Jika mati, aplikasi hanya ada di bar menu selama tidak ada jendela yang terbuka.",
       "menuBarTitle": "Tampilkan di bar menu",
       "notchTitle": "Tampilkan agen di notch",
       "notchDesc": "Di MacBook dengan notch: siapa yang sedang bekerja tampil di sekitar kamera."

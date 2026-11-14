@@ -2,7 +2,7 @@ import { InfoHint } from "@agenteschat/ui";
 import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 
-/** An ⓘ's accessible name ("About Show in the Dock") and the plain sentences it holds. */
+/** An ⓘ's accessible name ("About Show the agents in the notch") and the plain sentences it holds. */
 export type Hint = { name: string; text: ReactNode };
 
 /** The ⓘ for `label`, named after it in the reader's language and holding `text`. */

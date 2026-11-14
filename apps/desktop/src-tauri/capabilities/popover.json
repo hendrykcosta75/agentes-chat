@@ -25,7 +25,6 @@
     "allow-this-mac-reply",
     "allow-app-menu-set",
     "allow-this-mac-listening",
-    "allow-dock-set",
     "allow-local-server-status",
     "allow-local-server-start",
     "allow-local-server-stop",

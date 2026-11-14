@@ -110,13 +110,6 @@ describe("Preferences: a setting's explanation behind its ⓘ", () => {
             switch: "The request already reaches your phone and the site. This tells you here too.",
             line: null,
           },
-          {
-            title: "Show in the Dock",
-            hint: "With the count of what waits for you. Off, the app stays in the menu bar only while no window is open.",
-            switch:
-              "With the count of what waits for you. Off, the app stays in the menu bar only while no window is open.",
-            line: null,
-          },
           { title: "Show in the menu bar", hint: null, switch: null, line: null },
           {
             title: "Show the agents in the notch",

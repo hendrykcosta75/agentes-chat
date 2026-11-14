@@ -221,12 +221,11 @@ describe("a link to a server", () => {
 });
 
 describe("the menu bar and the labels Rust shows", () => {
-  test("the menu bar icon: the person's choice, else while agents work here, and always without the Dock", () => {
-    expect(menuBarShown(null, true, false)).toBe(false);
-    expect(menuBarShown(null, true, true)).toBe(true);
-    expect(menuBarShown(true, true, false)).toBe(true);
-    expect(menuBarShown(false, true, true)).toBe(false);
-    expect(menuBarShown(false, false, false)).toBe(true);
+  test("the menu bar icon: the person's choice, else while agents work here", () => {
+    expect(menuBarShown(null, false)).toBe(false);
+    expect(menuBarShown(null, true)).toBe(true);
+    expect(menuBarShown(true, false)).toBe(true);
+    expect(menuBarShown(false, true)).toBe(false);
   });
 
   // Rust refuses the whole set when one label is too long, so every language counts, not only the two written here.

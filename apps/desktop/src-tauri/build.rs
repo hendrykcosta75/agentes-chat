@@ -39,7 +39,6 @@ const COMMANDS: &[&str] = &[
     "cover_server",
     "cover_details",
     "this_mac_listening",
-    "dock_set",
     "local_server_status",
     "local_server_install",
     "local_server_cancel",

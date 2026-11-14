@@ -1508,12 +1508,6 @@
   "prefs.general.notifyBrowserDesc": {
     "value": "The request already reaches your phone and the site. This tells you here too."
   },
-  "prefs.general.dockTitle": {
-    "value": "Show in the Dock"
-  },
-  "prefs.general.dockDesc": {
-    "value": "With the count of what waits for you. Off, the app stays in the menu bar only while no window is open."
-  },
   "prefs.general.menuBarTitle": {
     "value": "Show in the menu bar"
   },

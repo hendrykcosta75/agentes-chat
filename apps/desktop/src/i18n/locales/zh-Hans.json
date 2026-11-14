@@ -547,8 +547,6 @@
       "notifyTitle": "智能体请求使用文件夹时通知我",
       "notifyBrowserTitle": "智能体需要我在它的浏览器中操作时通知我",
       "notifyBrowserDesc": "请求已经会发送到你的手机和网站。开启后这里也会通知你。",
-      "dockTitle": "在程序坞中显示",
-      "dockDesc": "显示等你处理的事项数量。关闭后，没有打开窗口时应用只显示在菜单栏中。",
       "menuBarTitle": "在菜单栏中显示",
       "notchTitle": "在刘海中显示智能体",
       "notchDesc": "在带刘海的 MacBook 上：正在工作的智能体会显示在摄像头周围。"

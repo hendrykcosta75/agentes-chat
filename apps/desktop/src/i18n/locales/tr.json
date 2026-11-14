@@ -552,8 +552,6 @@
       "notifyTitle": "Bir ajan klasör istediğinde haber ver",
       "notifyBrowserTitle": "Bir ajan tarayıcısında bana ihtiyaç duyduğunda haber ver",
       "notifyBrowserDesc": "İstek zaten telefonunuza ve siteye ulaşıyor. Bu ayar burada da haber verir.",
-      "dockTitle": "Dock'ta göster",
-      "dockDesc": "Sizi bekleyenlerin sayısıyla. Kapalıyken, hiçbir pencere açık değilse uygulama yalnızca menü çubuğunda kalır.",
       "menuBarTitle": "Menü çubuğunda göster",
       "notchTitle": "Ajanları çentikte göster",
       "notchDesc": "Çentikli MacBook'larda: çalışanlar kameranın çevresinde görünür."

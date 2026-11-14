@@ -557,8 +557,6 @@
       "notifyTitle": "Avísame cuando un agente pida una carpeta",
       "notifyBrowserTitle": "Avísame cuando un agente me necesite en su navegador",
       "notifyBrowserDesc": "La solicitud ya llega a tu teléfono y al sitio. Esto también te avisa aquí.",
-      "dockTitle": "Mostrar en el Dock",
-      "dockDesc": "Con la cantidad de lo que te espera. Si lo desactivas, la app queda solo en la barra de menús mientras no haya ninguna ventana abierta.",
       "menuBarTitle": "Mostrar en la barra de menús",
       "notchTitle": "Mostrar los agentes en el notch",
       "notchDesc": "En MacBooks con notch: quién está trabajando aparece alrededor de la cámara."

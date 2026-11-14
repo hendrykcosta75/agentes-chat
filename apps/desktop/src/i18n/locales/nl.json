@@ -552,8 +552,6 @@
       "notifyTitle": "Laat me weten als een agent om een map vraagt",
       "notifyBrowserTitle": "Laat me weten als een agent me nodig heeft in zijn browser",
       "notifyBrowserDesc": "Het verzoek komt al op je telefoon en de site binnen. Dit laat het je hier ook weten.",
-      "dockTitle": "Tonen in het Dock",
-      "dockDesc": "Met het aantal dingen dat op je wacht. Staat dit uit, dan blijft de app alleen in de menubalk zolang er geen venster open is.",
       "menuBarTitle": "Tonen in de menubalk",
       "notchTitle": "De agents in de notch tonen",
       "notchDesc": "Op MacBooks met een notch: wie aan het werk is, verschijnt rond de camera."

@@ -82,6 +82,9 @@ describe("notchStateOf", () => {
     expect(s.kind).toBe("needs");
     expect(s.help[0]).toMatchObject({ agentId: "a1", request: "Digitar o código", host: "banco.acme.example" });
   });
+  test("paused with nothing going on: idle, the notch hides", () => {
+    expect(notchStateOf([home({ paused: { paused: true, until: null } })]).kind).toBe("idle");
+  });
   test("paused beats working", () => {
     expect(notchStateOf([home({ paused: { paused: true, until: null } }, [job()])]).kind).toBe("paused");
   });
