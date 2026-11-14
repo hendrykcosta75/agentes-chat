@@ -833,7 +833,11 @@ export class Screen {
   private saved: [number, number] = [0, 0];
   private rest = "";
 
-  constructor(private readonly rows: number = TOKEN_TERMINAL.rows) {}
+  /** `beforeErase` runs before each escape that erases cells, with what the screen showed until then. */
+  constructor(
+    private readonly rows: number = TOKEN_TERMINAL.rows,
+    private readonly beforeErase?: () => void,
+  ) {}
 
   write(chunk: string) {
     const s = this.rest + chunk;
@@ -901,6 +905,7 @@ export class Screen {
     const [a = 0, b = 0] = params.split(";").map((p) => Number.parseInt(p, 10) || 0);
     const n = Math.max(1, a);
     const l = () => this.line();
+    if ("JKXP".includes(m[2])) this.beforeErase?.();
     switch (m[2]) {
       case "A":
         this.r = Math.max(0, this.r - n);
@@ -1816,7 +1821,8 @@ export class AccountManager {
   /**
    * A sign-in whose CLI needs a terminal of its own, in one. System mode's Claude sign-in for all agents
    * (`claude setup-token`) draws its screen only in a terminal: its link, and once signed in its token, are read off
-   * that screen, the token taken as soon as it is whole, since the screen may be gone when the CLI ends. The
+   * that screen, the token taken as soon as it is whole, since the screen may be gone when the CLI ends: also before
+   * each erase, as one piece read late can hold the token's last characters and the screen cleared after it. The
    * Antigravity CLI's `acp --login` reads the pasted code only from its terminal (with none it says "no controlling
    * terminal; cannot complete interactive login", 1.5.3): what it prints is read as it comes.
    */
@@ -1824,7 +1830,12 @@ export class AccountManager {
     const [file, ...pre] = this.command(login.kind);
     const env: NodeJS.ProcessEnv = { ...this.env(login.kind, login.dir), TERM: "xterm-256color" };
     // Held by the sign-in only, so the token on it goes once the sign-in settles.
-    if (login.kind === "claude_code") login.screen = new Screen();
+    if (login.kind === "claude_code") {
+      const screen = new Screen(undefined, () => {
+        login.token ??= parseSetupToken(screen.text()) ?? undefined;
+      });
+      login.screen = screen;
+    }
     const decoder = new TextDecoder();
     let eof: () => void = () => undefined;
     const lastOutput = new Promise<void>((resolve) => {

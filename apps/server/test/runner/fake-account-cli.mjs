@@ -99,14 +99,11 @@ switch (args.replace(/^auth login --email \S+$/, "auth login")) {
         `${ESC}[2m${drawn("Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>")}${ESC}[22m`,
         "",
       ].join("\r\n");
-      // In two writes, cut inside the token's line: what was read so far shows half a token.
+      // In two writes, cut inside the token's line: what was read so far shows half a token. The screen goes away
+      // as the CLI ends, in the same write as the token's rest: what a reader that falls behind gets in one piece.
       const half = screen.indexOf(FAKE_TOKEN.slice(cut));
       process.stdout.write(screen.slice(0, half));
-      setTimeout(() => {
-        process.stdout.write(screen.slice(half));
-        // The screen goes away as the CLI ends.
-        setTimeout(() => end(0, `${ESC}[2J${ESC}[H`), 100);
-      }, 100);
+      setTimeout(() => end(0, `${screen.slice(half)}${ESC}[2J${ESC}[H`), 100);
     });
     break;
   }

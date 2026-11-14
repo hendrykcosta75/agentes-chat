@@ -859,6 +859,12 @@ test("a terminal's screen: words apart by cursor moves, a line drawn in pieces, 
   u.write("one\r\ntwo\r\n");
   u.write(`${ESC}[2A${ESC}[2K${ESC}[1Gthree`);
   expect(u.text()).toBe("three\ntwo");
+  // A piece that ends the token's screen and clears it: the screen is seen just before each erase.
+  const seen: string[] = [];
+  const v = new Screen(undefined, () => seen.push(v.text()));
+  v.write(`Your OAuth token:\r\n${TOKEN}\r\nStore this token${ESC}[2J${ESC}[H`);
+  expect(v.text()).toBe("");
+  expect(seen.map((t) => parseSetupToken(t))).toEqual([TOKEN]);
   // Only a token after "OAuth token"; once the CLI ended, without the line under it.
   expect(parseSetupToken(`${TOKEN}\nYour OAuth token:\nStore this token`)).toBeNull();
   expect(parseSetupToken(`Your OAuth token:\n${TOKEN}`, true)).toBe(TOKEN);
