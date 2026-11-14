@@ -122,6 +122,7 @@ export {
   CountBadge,
   CountChip,
 } from "./components/Chip";
+export { ChipField, type ChipFieldOption, type ChipFieldProps, type ChipFieldToken } from "./components/ChipField";
 export { CodeInput, type CodeInputProps } from "./components/CodeInput";
 export { ColorDot, dotTone } from "./components/ColorDot";
 export { ColorPicker, type ColorPickerLabels } from "./components/ColorPicker";
@@ -375,7 +376,7 @@ export { type TabItem, TabPanel, Tabs } from "./components/Tabs";
 export { normalizeTime, TimeSelect, type TimeSelectProps, timeOptions } from "./components/TimeSelect";
 export { TimezoneSelect, type TimezoneSelectLabels, type TimezoneSelectProps } from "./components/TimezoneSelect";
 export { Tip, type TipProps } from "./components/Tip";
-export { Token, TokenList } from "./components/Token";
+export { Token, TokenList, type TokenProps } from "./components/Token";
 export {
   ToolBlock,
   type ToolBlockHead,

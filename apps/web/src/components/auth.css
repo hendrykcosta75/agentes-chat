@@ -378,3 +378,29 @@ html:not([data-pointer]) .auth__quiet:focus-visible {
 .auth__place-change {
   font-size: inherit;
 }
+
+/* A screen in place of a workspace someone isn't in (`NotMember`): the mark, what happened, one line on how to get in,
+   and the way back, centred in the column. */
+.auth__notice {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  max-width: 380px;
+  margin: 0 auto;
+  text-align: center;
+}
+.auth__notice > h1 {
+  margin: var(--space-1) 0 0;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.auth__notice > p {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-1);
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--muted);
+  text-wrap: pretty;
+}

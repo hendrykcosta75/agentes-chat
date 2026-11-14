@@ -706,10 +706,7 @@ function RoleHead({
               }
             >
               {invites && (
-                <MenuItem
-                  icon="personAdd"
-                  onSelect={() => invite?.open({ roleId: role.id, channelIds: role.channelIds ?? [] })}
-                >
+                <MenuItem icon="personAdd" onSelect={() => invite?.open({ roleIds: [role.id] })}>
                   {t("rolesPage.inviteWith")}
                 </MenuItem>
               )}

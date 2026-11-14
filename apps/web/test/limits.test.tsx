@@ -33,20 +33,20 @@ async function go(path: string, over: Partial<WorkspaceLimits>, billing = true) 
   return { api, state, left, billingLinks, sockets, router };
 }
 /**
- * Members' "Convidar pessoas" opens the invite dialog (ADR 0090); an address goes in, so the only thing that can keep
- * its first step's Continuar waiting is a full workspace.
+ * Members' "Convidar pessoas" opens the invite dialog (ADR 0090, 0184); an address goes in, so the only thing that can
+ * keep Convidar waiting is a full workspace.
  */
 async function inviteDialog() {
   const [open] = screen().getAllByRole("button", { name: "Convidar pessoas" });
   await click(open as HTMLElement);
   await settle(2);
   const dialog = () => screen().getByRole("dialog", { name: "Convidar para a Acme" });
-  const emails = within(dialog()).getByLabelText("E-mails");
-  await act(async () => fireEvent.change(emails, { target: { value: "nova@acme.com.br" } }));
-  await act(async () => fireEvent.keyDown(emails, { key: "Enter" }));
+  const to = within(dialog()).getByLabelText("Para");
+  await act(async () => fireEvent.change(to, { target: { value: "nova@acme.com.br" } }));
+  await act(async () => fireEvent.keyDown(to, { key: "Enter" }));
   return dialog;
 }
-const sendButton = (dialog: HTMLElement) => within(dialog).getByRole("button", { name: "Continuar" });
+const sendButton = (dialog: HTMLElement) => within(dialog).getByRole("button", { name: "Convidar 1 pessoa" });
 
 describe("a workspace's limits (ADR 0079)", () => {
   test("Plano e cobrança: people and files against them, in plain numbers", async () => {
@@ -125,7 +125,7 @@ describe("a workspace's limits (ADR 0079)", () => {
 
     await go("settings/members", { members: { used: 2, limit: 3 } });
     const room = await inviteDialog();
-    expect(room().textContent).not.toContain("pessoas.");
+    expect(room().textContent).not.toContain("Este workspace está com");
     expect(sendButton(room()).hasAttribute("disabled")).toBe(false);
   });
 

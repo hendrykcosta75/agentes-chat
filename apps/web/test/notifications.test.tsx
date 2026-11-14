@@ -956,7 +956,7 @@ describe("Esperando você: what only points somewhere is a card of the requests'
     expect(row().classList.contains("nt-wr")).toBe(true);
     // A card of the requests' shape: where it is from and when on top, the headline as its words.
     expect(row().querySelector(".nt-wr__main")?.classList.contains("rq")).toBe(true);
-    expect(row().querySelector(".rq__kind .nt-wr__src")?.textContent).toBe("Membros");
+    expect(row().querySelector(".rq__kind .nt-wr__src")?.textContent).toBe("Convites");
     expect(row().querySelector(".rq__kind .nt-wr__tm")?.textContent).toBe(" · agora");
     expect(row().querySelector(".rq__lead.nt-what")?.textContent).toBe("Felipe Ramos pede para entrar");
     const acts = row().querySelector(".rq__foot.nt-wr__acts") as HTMLElement;
@@ -982,7 +982,7 @@ describe("Esperando você: what only points somewhere is a card of the requests'
     const { state, router } = await go(seedState({ notifications: [asks()] }));
     await click(row().querySelector(".nt-what") as HTMLElement);
     await settle(4);
-    expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/members`);
+    expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/invites`);
     expect(state.calls.find((c) => c.method === "notifications.read")?.args).toEqual([ORG_ID, "n-join", true]);
   });
 

@@ -25,13 +25,14 @@ test("a join request, an invitation or a suggestion is a MediaRow: who it is on 
   expect(last(shipped, ".roles-picker.ac-btn", "width")).toBe("100%");
 
   // The state is an icon line (the icon on its first line's capitals), with no layout of its own to fight it, beside
-  // what the row is; an unconfirmed address beside it too, and what the person wrote last, at the row's width.
+  // what the row is; an unconfirmed address beside it too, and what the person wrote last, at the row's width, with
+  // the row's own room under it.
   expect(last(shipped, ".ac-iconline", "display")).toBe("flex");
   expect(last(shipped, ".members-row__state", "display")).toBeUndefined();
   expect(last(shipped, ".members-row__line", "flex-wrap")).toBe("wrap");
   expect(last(shipped, ".members-row__flag", "display")).toBe("contents");
   expect(last(shipped, ".members-row__note", "order")).toBe("2");
-  expect(last(shipped, ".members-row__note", "margin")).toBe("0 0 2px");
+  expect(last(shipped, ".members-row__note", "margin")).toBe("0");
 
   // No breakpoint of the rows' own: the list's width decides, as for every MediaRow.
   for (const media of ["@media (max-width: 640px)", "@media (max-width: 760px)"])

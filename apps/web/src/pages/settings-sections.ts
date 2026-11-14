@@ -16,6 +16,7 @@ export type SettingsSection =
   | "apps"
   | "general"
   | "members"
+  | "invites"
   | "roles"
   | "vault"
   | "audit"
@@ -57,6 +58,8 @@ export const SETTINGS_SECTIONS: {
   // own speech engine, so the section has nothing to offer there (product decision).
   { id: "voice", icon: "mic", allowed: (o, server) => selfHosted(server) && can(o, "configure") },
   { id: "members", icon: "members", allowed: () => true },
+  // Convites (ADR 0184): People's second tab, for who may invite: the requests waiting, the links and the e-mails.
+  { id: "invites", icon: "mail", allowed: (o) => can(o, "invite_people") },
   // Cargos (ADR 0085): an entry of its own, for who manages them.
   { id: "roles", icon: "shield", allowed: (o) => can(o, "manage_roles") },
   // "IA e uso", for everyone (ADR 0063): the workspace's AI accounts with their meters, what each person does with

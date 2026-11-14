@@ -1,6 +1,7 @@
 /*
- * Bringing a teammate in (ADR 0090): the addresses as chips (the onboarding's Team step and the invite dialog), the
- * invite dialog's steps, and the workspace's link. Tokens only, so light and dark follow the theme.
+ * Bringing a teammate in (ADR 0090, 0184): the addresses as chips (the onboarding's Team step), the invite dialog's one
+ * screen (its fields' labels and ⓘ on top, each control at the form's width), and the workspace's link. Tokens only, so
+ * light and dark follow the theme.
  */
 
 /* The addresses: chips in a sunken box, typed or pasted, the field after the last one. */
@@ -86,42 +87,6 @@
   color: var(--faint);
 }
 
-/*
- * The invite dialog (ADR 0090 §5): a step at a time under its bars, the workspace's first agent asking each one. The
- * body keeps one height across the steps, so the dialog doesn't jump under the pointer between them.
- */
-.invite-steps {
-  margin: 2px var(--dialog-pad) 10px;
-}
-.ac-dialog__body.invite-dialog {
-  min-height: min(340px, 52dvh);
-}
-.invite-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-bottom: 2px;
-}
-/* The host and its bubble, as on the invitation page (components/auth.css), at the dialog's size. */
-.invite-host__face {
-  display: flex;
-  flex: none;
-}
-.invite-host .auth__bubble {
-  padding: 14px 18px;
-}
-.invite-host .auth__title {
-  font-size: 19px;
-  line-height: 26px;
-}
-.invite-host .auth__lead {
-  line-height: 20px;
-}
-/* Back (or Cancelar) on the left, what goes on on the right. */
-.invite-foot__gap {
-  flex: 1;
-}
-
 /* The line under the addresses: how to paste, who stays out, or the ones to check in danger. */
 .invite-help {
   margin: -6px 0 0;
@@ -162,291 +127,6 @@
   color: var(--ink2);
 }
 
-/* The role: a card per role with its mark, the check in the corner; or a role per person. */
-.invite-roles {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.invite-roles > .ac-option {
-  align-items: center;
-  padding: 12px 40px 12px 12px;
-}
-.invite-roles .ac-option__text {
-  gap: 1px;
-}
-.invite-roles .ac-option__title {
-  font-size: 15px;
-  line-height: 20px;
-}
-.invite-roles .ac-option__desc {
-  font-size: 13.5px;
-  line-height: 18px;
-}
-.invite-each {
-  all: unset;
-  box-sizing: border-box;
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 2px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink2);
-  cursor: pointer;
-}
-.invite-each:hover {
-  color: var(--ink);
-}
-html:not([data-pointer]) .invite-each:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-.invite-each > .ac-icon {
-  color: var(--muted);
-  transition: transform 0.18s var(--out);
-}
-.invite-each[aria-expanded="true"] > .ac-icon {
-  transform: rotate(90deg);
-}
-/* A row per person (their role, or what became of their address): the same room on both sides. */
-.invite-people {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.invite-person {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-}
-.invite-person + .invite-person {
-  border-top: 1px solid var(--line);
-}
-.invite-person__email {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-}
-.invite-person__role {
-  font-size: 13px;
-  color: var(--muted);
-}
-.invite-state {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ok);
-}
-.invite-state[data-skip] {
-  color: var(--muted);
-}
-.invite-state .ac-icon path {
-  stroke-dasharray: 16;
-}
-
-/* Where they start: a channel per row, its box, its name and line, the agents there at its end. */
-.invite-chan {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  color: var(--ink);
-  cursor: pointer;
-}
-.invite-chan + .invite-chan {
-  border-top: 1px solid var(--line);
-}
-.invite-chan:hover:not([data-fixed]) {
-  background: color-mix(in srgb, var(--ink) 3%, transparent);
-}
-.invite-chan[data-fixed] {
-  cursor: default;
-}
-.invite-chan > .ac-check {
-  margin: 0;
-}
-.invite-chan__text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 19px;
-}
-.invite-chan__name {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-}
-.invite-chan__name > .ac-icon {
-  color: var(--muted);
-}
-.invite-chan__sub {
-  font-size: 13px;
-  color: var(--muted);
-}
-/* The agents' faces keep room above for what they wear: an accessory reaches 9/16 of an 18px face over it
-   (ACCESSORY_REACH in the agent engine). */
-.invite-chan__faces {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding-top: 10px;
-}
-
-/* The note, and the email as it arrives under "Assim chega para…". */
-.ac-input.invite-note {
-  min-height: 92px;
-  padding: 12px 14px;
-  font-size: 15px;
-  line-height: 22px;
-}
-.invite-mail-fig {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin: 0;
-}
-.invite-mail-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.invite-mail {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  background: var(--bg);
-  box-shadow: inset 0 0 0 1px var(--line);
-  font-size: 14px;
-  line-height: 20px;
-}
-.invite-mail p {
-  margin: 0;
-}
-.invite-mail__from {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--muted);
-}
-.invite-mail__who {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.invite-mail__who b {
-  font-weight: 600;
-  color: var(--ink);
-}
-.invite-mail__title {
-  margin: 0;
-  font-size: 17px;
-  line-height: 23px;
-  font-weight: 650;
-}
-.invite-mail__note {
-  padding: 10px 12px;
-  border-radius: 12px 12px 12px 4px;
-  background: var(--raised);
-  box-shadow: inset 0 0 0 1px var(--line);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.invite-mail__what {
-  color: var(--muted);
-}
-.invite-mail__btn {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 10px;
-  background: var(--action);
-  color: var(--on-action);
-  font-size: 14px;
-  font-weight: 600;
-}
-.invite-mail__foot {
-  font-size: 12.5px;
-  color: var(--faint);
-}
-
-/*
- * What became of each address, once per send (the screen mounts with each one): the rows come in one after another,
- * the ones sent first, 70ms apart (`--i`); the host's bubble with them, its face jumping when someone was sent (its
- * confetti is `pixelConfetti`); each "Enviado" check draws itself. With reduced motion all of it is there at once.
- */
-.invite-screen[data-sent] .invite-answer {
-  transition: none;
-}
-.invite-screen[data-sent] .auth__bubble {
-  transition-delay: 120ms;
-}
-.invite-screen[data-sent] .invite-person {
-  animation: invite-row-in 0.32s var(--out) both;
-  animation-delay: calc(60ms + var(--i, 0) * 70ms);
-}
-.invite-screen[data-party] .invite-host__face {
-  animation: invite-hop 0.64s cubic-bezier(0.3, 0.7, 0.3, 1) 120ms;
-}
-.invite-screen[data-sent] .invite-person[data-ok] .invite-state .ac-icon path {
-  animation: invite-check 0.38s var(--out) both;
-  animation-delay: calc(140ms + var(--i, 0) * 70ms);
-}
-@keyframes invite-row-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-@keyframes invite-hop {
-  25% {
-    transform: translateY(-9px);
-  }
-  50% {
-    transform: none;
-  }
-  75% {
-    transform: translateY(-3px);
-  }
-}
-@keyframes invite-check {
-  from {
-    stroke-dashoffset: 16;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .invite-screen[data-sent] .auth__bubble {
-    transition: none;
-  }
-  .invite-screen[data-sent] .invite-person,
-  .invite-screen[data-sent] .invite-host__face,
-  .invite-screen[data-party] .invite-host__face,
-  .invite-screen[data-sent] .invite-person[data-ok] .invite-state .ac-icon path {
-    animation: none;
-  }
-}
-
 /* The link's screen: how it works, a step a line, and the requests waiting. */
 .invite-how {
   display: flex;
@@ -475,39 +155,7 @@ html:not([data-pointer]) .invite-each:focus-visible {
   font-weight: 700;
   color: var(--ink2);
 }
-/* The faces, then the words and Ver pedidos in an `.ac-actline`: under the words when it doesn't fit beside them, from
-   their edge. The faces stay on the words' middle. */
-.invite-waiting {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius-lg);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.invite-waiting > .ac-avatar-stack {
-  flex: none;
-  margin-block: calc((2 * 19px - 24px) / 2);
-}
-.invite-waiting > .ac-actline {
-  flex: 1 1 0%;
-  align-items: center;
-}
-.invite-waiting__text {
-  display: flex;
-  flex-direction: column;
-  font-size: 14px;
-  line-height: 19px;
-}
-.invite-waiting__text b {
-  font-weight: 600;
-}
-.invite-waiting__text span {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-/* The workspace's link (ADR 0068): the address to copy, until when it works, renew and turn off; earlier links. */
+/* The workspace's link (ADR 0068): the address to copy and until when it works (the onboarding's people step). */
 .invite-link {
   display: flex;
   flex-direction: column;
@@ -533,17 +181,81 @@ html:not([data-pointer]) .invite-each:focus-visible {
 .invite-link__foot > .ac-icon {
   color: var(--faint);
 }
-/* Renew and Turn off are text buttons at the line's end: the last word ends where Copy ends above it. */
-.invite-link__foot > .ac-btn--ghost:first-of-type {
-  margin-left: auto;
-}
-.invite-link__foot > .ac-btn--ghost:last-child {
-  margin-right: calc(-1 * var(--control-px-sm));
-}
 .invite-link__none {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+/* The invite dialog (ADR 0184): one screen of kit fields, the cargo's mark and name in a field-wide trigger. */
+.invite-dialog {
+  container-type: inline-size;
+}
+/* Every picked cargo stays in sight: the trigger grows a line rather than cutting a name. */
+.ac-select__trigger.invite-role {
+  height: auto;
+  min-height: var(--control-h-md);
+  padding-block: calc((var(--control-h-md) - 2px - 20px) / 2);
+}
+.invite-role__value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  line-height: 20px;
+  white-space: normal;
+  overflow: visible;
+}
+/* Not the select value's centred icon: `.ac-iconline` puts the mark on the name's capitals. */
+.invite-role__value > .invite-role__item {
+  align-items: flex-start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* The cargos' menu at least the trigger's width, as a select's list is. */
+.invite-rolemenu.ac-menu {
+  min-width: var(--radix-dropdown-menu-trigger-width);
+  max-width: calc(100vw - 2 * var(--space-3));
+}
+/* A line under a field: its icon on the words' capitals, a note muted, what to fix in the danger tone. */
+.invite-line {
+  margin: 0;
+}
+.invite-line.ac-field__example > .ac-icon {
+  color: var(--faint);
+}
+/* "+ Recado no e-mail": a ghost at the form's start, its words on the fields' edge. */
+.invite-extra {
+  display: flex;
+  margin-inline-start: calc(-1 * var(--ghost-plate));
+}
+/* The link and its one button (Copiar link, Copiado or Criar link in one cell): the field never moves. */
+.invite-linkrow {
+  display: flex;
+  gap: var(--space-2);
+}
+.invite-linkrow > .ac-input {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.invite-linkrow > .ac-btn {
+  flex: none;
+}
+/* Validade and Máximo de pessoas side by side, one height and one right edge; under each other when narrow. */
+.invite-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--form-gap);
+}
+@container (max-width: 359px) {
+  .invite-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Editar link's "Desativar link": a ghost on the footer's start, apart from Cancelar and Salvar. */
+.ac-dialog__foot > .invite-foot__lead {
+  margin-inline: calc(-1 * var(--ghost-plate)) auto;
 }

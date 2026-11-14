@@ -88,6 +88,8 @@ interface OrgFacts {
   by?: string | null;
   agents?: Agentish[];
   more?: number;
+  /** How many of `agents`, from the first, the invitation starts the person with (ADR 0184). */
+  yours?: number;
   /** A personal workspace (ADR 0159): its name ("Personal") says nothing to who is invited, whose space it is does. */
   personal?: boolean;
 }
@@ -98,6 +100,7 @@ const orgOf = (preview: InvitationPreview): OrgFacts => ({
   by: preview.invitedBy,
   agents: preview.agents ?? [],
   more: preview.moreAgents ?? 0,
+  yours: preview.yours ?? 0,
   personal: isPersonal(preview),
 });
 
@@ -189,16 +192,26 @@ function OrgLine({ org }: { org: OrgFacts }) {
   const { t } = useTranslation();
   const agents = org.agents ?? [];
   const more = org.more ?? 0;
+  // The agents the invitation starts the person with, by name ("Max vai trabalhar com você"); else who works there.
+  const yours = agents.slice(0, org.yours ?? 0);
   const crew =
-    agents.length > 0
-      ? t("invite.crew", {
-          count: agents.length + more,
+    yours.length > 0
+      ? t("invite.crewYours", {
+          count: yours.length,
           names: joinNames(
-            [...agents.map((a) => a.name), ...(more ? [t("invite.ask.moreAgents", { count: more })] : [])],
+            yours.map((a) => a.name),
             t,
           ),
         })
-      : null;
+      : agents.length > 0
+        ? t("invite.crew", {
+            count: agents.length + more,
+            names: joinNames(
+              [...agents.map((a) => a.name), ...(more ? [t("invite.ask.moreAgents", { count: more })] : [])],
+              t,
+            ),
+          })
+        : null;
   // A personal workspace goes by whose it is (ADR 0159), which already says who invited.
   const name = !org.personal
     ? org.name
@@ -626,9 +639,28 @@ function EmailInvitation({
   };
 
   const first = name.trim().split(/\s+/)[0] ?? "";
-  const calledYou = by
-    ? t(modeKey(preview, "invite.calledYou"), { name: by, org })
-    : t(modeKey(preview, "invite.calledYouNoName"), { org });
+  // A team's invitation that gives cargos says them (ADR 0184): "…para a Acme, como Suporte."
+  const cargos =
+    !isPersonal(preview) && preview.roles?.length
+      ? joinNames(
+          preview.roles.map((r) => r.name),
+          t,
+        )
+      : null;
+  const calledYou = cargos
+    ? by
+      ? t("invite.calledYouAs", { name: by, org, roles: cargos })
+      : t("invite.calledYouAsNoName", { org, roles: cargos })
+    : by
+      ? t(modeKey(preview, "invite.calledYou"), { name: by, org })
+      : t(modeKey(preview, "invite.calledYouNoName"), { org });
+  const hello = cargos
+    ? by
+      ? t("invite.helloAs", { name: by, org, roles: cargos })
+      : t("invite.helloAsNoName", { org, roles: cargos })
+    : by
+      ? t(modeKey(preview, "invite.hello"), { name: by, org })
+      : t(modeKey(preview, "invite.helloNoName"), { org });
   const providerNames = providers.map((p) => t(`auth.provider.${p}`)).join(" · ");
   const signInStep = account.password ? "password" : "social";
   const mail = webmailOf(invited);
@@ -638,10 +670,7 @@ function EmailInvitation({
       t("invite.otherTitle", { email: invited }),
       t(modeKey(preview, "invite.otherLead"), { other: otherEmail, org }),
     ],
-    name: [
-      by ? t(modeKey(preview, "invite.hello"), { name: by, org }) : t(modeKey(preview, "invite.helloNoName"), { org }),
-      t(modeKey(preview, "invite.nameLead")),
-    ],
+    name: [hello, t(modeKey(preview, "invite.nameLead"))],
     newPassword: [
       first ? t("auth.flow.newPasswordNamed", { name: first }) : t("auth.flow.newPassword"),
       t(modeKey(preview, "invite.newPasswordLead"), { org }),
@@ -843,6 +872,21 @@ function ClosedInvitation({ preview }: { preview: InvitationPreview }) {
   );
 }
 
+/** A link that took all its people (ADR 0184): only that, and whom to ask for a new one. */
+function FullLink({ preview }: { preview: InvitationPreview }) {
+  const { t } = useTranslation();
+  const by = preview.invitedBy ? firstName(preview.invitedBy) : null;
+  return (
+    <InviteScreen
+      org={orgOf(preview)}
+      expression="closed"
+      title={t("invite.ask.fullTitle")}
+      lead={by ? t("invite.ask.fullLead", { name: by }) : t("invite.ask.fullLeadNoName")}
+      step="link-full"
+    />
+  );
+}
+
 /** No seat left: said before anyone makes an account, and the same link works once one opens (ADR 0090). */
 function FullWorkspace({ preview }: { preview: InvitationPreview }) {
   const { t } = useTranslation();
@@ -987,6 +1031,8 @@ function LinkInvitation({ token, preview }: { token: string; preview: Invitation
   const [asked, setAsked] = useState<Asked | null>(() => readAsked(token));
   // Waiting goes on while it signs in, so the page never flashes the account's own form on the way in.
   if (asked) return <Waiting token={token} preview={preview} asked={asked} />;
+  // A link that took all the people it may (ADR 0184): said before anyone asks, with whom to ask for another.
+  if (preview.full) return <FullLink preview={preview} />;
   if (user) return <AskAsAccount token={token} preview={preview} />;
   if (preview.closed) return <ClosedInvitation preview={preview} />;
   if (!emails) return <AskForm token={token} preview={preview} />;

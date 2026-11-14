@@ -394,7 +394,9 @@ export type OpenTarget =
   | { to: "/org/$orgId/settings/computers/$machineId"; params: { machineId: string } }
   | {
       to: "/org/$orgId/settings/$section";
-      params: { section: "computers" | "members" | "usage" | "connectors" | "billing" | "approvals" | "right_hand" };
+      params: {
+        section: "computers" | "members" | "invites" | "usage" | "connectors" | "billing" | "approvals" | "right_hand";
+      };
     }
   | { to: "/org/$orgId/home"; search?: { widget: string } }
   | { to: "/org/$orgId/dashboards" }
@@ -450,8 +452,8 @@ export function openTarget(n: AppNotification): OpenTarget | null {
         : { to: "/org/$orgId/settings/$section", params: { section: "computers" } };
     return found.cause ? { to: "/org/$orgId/settings/$section", params: { section: "connectors" } } : null;
   }
-  // Requests to join are answered in Members (ADR 0068).
-  if (n.kind === "join_request") return { to: "/org/$orgId/settings/$section", params: { section: "members" } };
+  // Requests to join are answered in People › Convites (ADR 0068, 0184).
+  if (n.kind === "join_request") return { to: "/org/$orgId/settings/$section", params: { section: "invites" } };
   // "Pedir a um admin": roles are given in Members, webhooks set up from a routine; an agent is added in its channel.
   if (n.kind === "admin_ask" && n.latest.reason === "create_agents")
     return { to: "/org/$orgId/settings/$section", params: { section: "members" } };

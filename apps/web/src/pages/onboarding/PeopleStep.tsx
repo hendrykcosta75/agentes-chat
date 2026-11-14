@@ -114,7 +114,7 @@ export function PeopleStep({
     return (
       <>
         <div className="onb__answer">
-          <InviteLinkPanel copyOnly />
+          <InviteLinkPanel />
           <ol className="invite-how">
             {(["how1", "how2", "how3"] as const).map((k, i) => (
               <li key={k}>
@@ -176,7 +176,7 @@ export function PeopleStep({
                 : t("members.dialog.pasteHelp")}
           </p>
           {link ? (
-            <InviteLinkPanel copyOnly />
+            <InviteLinkPanel />
           ) : (
             <div className="invite-orlink ac-mediarow">
               <span className="ac-mediarow__face">

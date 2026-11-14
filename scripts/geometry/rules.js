@@ -1322,11 +1322,19 @@
     /**
      * In a stack of fields (a box holding two or more), each field's control is as wide as the field and as tall as the
      * stack's usual control, within 1 and 0.5px. A button that shows a value is drawn as a select, never a plain button.
+     * A control that grows with what it holds (a chip field's tokens, picks on a second line) a line or more past its
+     * min-height is measured by that min-height: its first line is the one that matches.
      */
     fieldwidth(out) {
       const LABEL = ".ac-field__label,.ac-field__label-row,.ac-hintline";
       const TOGGLE =
         "[role=checkbox],[role=radio],[role=switch],[role=radiogroup],input[type=checkbox],input[type=radio]";
+      const heightOf = (c) => {
+        const h = c.getBoundingClientRect().height;
+        if (c.matches("textarea") || c.querySelector("textarea")) return h;
+        const min = parseFloat(style(c).minHeight) || 0;
+        return min > 0 && h - min >= 16 ? min : h;
+      };
       const stacks = new Set();
       for (const field of document.querySelectorAll(".ac-field")) {
         const p = layoutParent(field);
@@ -1346,7 +1354,7 @@
         );
         const count = new Map();
         for (const [, c] of controls) {
-          const h = Math.round(c.getBoundingClientRect().height * 2) / 2;
+          const h = Math.round(heightOf(c) * 2) / 2;
           count.set(h, (count.get(h) ?? 0) + 1);
         }
         const usual = [...count].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? 0;
@@ -1359,12 +1367,12 @@
             parseFloat(fs.borderLeftWidth) -
             parseFloat(fs.borderRightWidth);
           const c = control.getBoundingClientRect();
+          const h = heightOf(control);
           const base = { rule: "fieldwidth", node: control, el: sig(control), box: sig(field) };
           if (control.matches(".ac-btn")) out.push({ ...base, drawn: "button", text: words(control) });
           if (Math.abs(c.width - inner) > 1) out.push({ ...base, side: "width", px: +(c.width - inner).toFixed(1) });
-          const tall = control.matches("textarea") || control.querySelector("textarea") || c.height > 2 * usual;
-          if (!tall && Math.abs(c.height - usual) > 0.5)
-            out.push({ ...base, side: "height", px: +(c.height - usual).toFixed(1) });
+          const tall = control.matches("textarea") || control.querySelector("textarea") || h > 2 * usual;
+          if (!tall && Math.abs(h - usual) > 0.5) out.push({ ...base, side: "height", px: +(h - usual).toFixed(1) });
         }
       }
     },

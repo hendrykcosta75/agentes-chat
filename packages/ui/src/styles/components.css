@@ -4759,6 +4759,120 @@ html:not([data-pointer]) .ac-token__remove:focus-visible {
   height: 18px;
   border-radius: var(--radius-cut);
 }
+/* Why it won't go as it is ("confira") or won't count ("já convidado"): a word after the label, never cut. */
+.ac-token__note {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ac-token[data-state="invalid"] {
+  border-color: var(--danger);
+}
+.ac-token[data-state="invalid"] .ac-token__note {
+  color: var(--danger);
+}
+/* Fine, but left out of what's sent: its outline only. */
+.ac-token[data-state="soft"] {
+  background: transparent;
+  border-color: var(--line2);
+  color: var(--muted);
+}
+/* A token that stays (no ✕) keeps its tip's anchor as small as itself, so a long one still ends in "…". */
+.ac-token__tip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.ac-token > .ac-icon:first-child {
+  flex: none;
+  color: var(--muted);
+}
+/* Brought in by something else (a cargo's channels): it fades in, nothing moves for it. */
+.ac-token[data-fresh] {
+  animation: ac-token-in 0.16s var(--out) both;
+}
+@keyframes ac-token-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-token[data-fresh] {
+    animation: none;
+  }
+}
+
+/*
+ * ChipField: 28px tokens in a field's box (40 high with none: 5 of room around a token inside its 1px line), the input
+ * after the last one. It grows with its tokens and never scrolls inside; its list floats under it (`.ac-tz__menu`).
+ */
+.ac-chipfield {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-h-md);
+  padding: 5px;
+  box-sizing: border-box;
+  background: var(--field-bg);
+  border: 1px solid var(--field-line);
+  border-radius: var(--control-r-md);
+  cursor: text;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.18s var(--out);
+}
+.ac-chipfield:hover {
+  border-color: var(--line-strong);
+}
+.ac-chipfield[data-focus] {
+  background: var(--raised);
+  border-color: var(--field-line);
+  box-shadow: var(--e2), var(--field-ring);
+}
+.ac-chipfield[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.ac-chipfield[aria-invalid="true"][data-focus] {
+  box-shadow: var(--e2), var(--field-ring-danger);
+}
+.ac-chipfield[aria-disabled="true"] {
+  border-color: var(--line);
+  background: var(--sunken);
+  cursor: not-allowed;
+}
+/* Its words start where an input's do: the input's padding less the box's 5. */
+.ac-chipfield__input {
+  flex: 1 1 120px;
+  min-width: min(100%, 120px);
+  height: 28px;
+  padding: 0 calc(var(--control-px-md) - 5px);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--control-fs-md);
+  outline: none;
+}
+.ac-chipfield__input::placeholder {
+  color: var(--faint);
+}
+.ac-chipfield__input:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+  -webkit-text-fill-color: currentColor;
+  opacity: 1;
+}
+/* After a token, the input's words keep a token's gap from it, not an input's padding. */
+.ac-chipfield > :is(.ac-token, .ac-token__tip) ~ .ac-chipfield__input {
+  padding-inline-start: 4px;
+}
+/* No search row on top: the list takes the menu's whole height. */
+.ac-chipfield__menu .ac-tz__list {
+  max-height: min(420px, var(--radix-popover-content-available-height, 420px));
+}
 
 /* "@" suggestions above the composer */
 .ac-suggest {
@@ -10410,7 +10524,8 @@ html:not([data-pointer]) .ac-filter__option:focus-visible {
   .ac-composer textarea,
   .ac-emoji__search input,
   .ac-searchfield__input,
-  .ac-searchfield--sm .ac-searchfield__input {
+  .ac-searchfield--sm .ac-searchfield__input,
+  .ac-chipfield__input {
     font-size: 16px;
   }
   /* The "/" hint doesn't show here (below): an empty field's words take its room. */

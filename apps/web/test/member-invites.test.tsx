@@ -3,17 +3,29 @@ import { setupDom } from "@agenteschat/ui/testing/dom";
 
 setupDom();
 
-import type { InvitationWithStatus } from "@agenteschat/client";
-import { ApiError } from "@agenteschat/client";
+import type { Agent, InvitationWithStatus, InviteLink, OrgRole } from "@agenteschat/client";
+import { ApiError, NetworkError } from "@agenteschat/client";
 import { act, cleanup, fireEvent, within } from "@testing-library/react";
 import { createI18n } from "@/i18n";
-import { undoWindow } from "@/pages/MembersPage";
-import { ADA_ID, ADMIN_ROLE_ID, createFakeApi, ENG_ID, GENERAL_ID, ORG_ID, seedState } from "./fake-api";
+import { undoWindow } from "@/pages/InvitesPage";
+import {
+  ADA_ID,
+  ATLAS_ID,
+  createFakeApi,
+  ENG_ID,
+  GENERAL_ID,
+  ORG_ID,
+  seedRoles,
+  seedState,
+  withRightHand,
+} from "./fake-api";
+import { hintOf } from "./hint";
 import { renderApp, screen, settle } from "./render";
 
 /*
- * Bringing a teammate in (ADR 0090): the one invite dialog and where it opens from, the invitations sent, a member's
- * suggestions, and a newcomer's first #general.
+ * Bringing a teammate in (ADR 0090, 0184): the one invite dialog (E-mail or Link, then Para, Cargo, Canais and
+ * Agentes) and where it opens from, People › Convites (the requests, the links and the e-mail invitations, Editar link
+ * and Editar convite), a member's suggestions, and a newcomer's first #general.
  */
 
 const UNDO_MS = undoWindow.ms;
@@ -25,28 +37,109 @@ afterEach(() => {
 
 const click = (el: Element) => act(async () => fireEvent.click(el));
 const type = (el: Element, value: string) => act(async () => fireEvent.change(el, { target: { value } }));
+const key = (el: Element, k: string, extra: Partial<KeyboardEventInit> = {}) =>
+  act(async () => fireEvent.keyDown(el, { key: k, ...extra }));
 const wait = (ms: number) => act(() => new Promise((r) => setTimeout(r, ms)));
 const text = () => document.body.textContent ?? "";
 const dialog = () => screen().getByRole("dialog", { name: "Convidar para a Acme" });
-const chipsIn = (el: HTMLElement) => [...el.querySelectorAll(".email-chip__email")].map((c) => c.textContent);
+/** The words of a chip field's tokens. */
+const tokensOf = (field: string) =>
+  [...(dialog().querySelector(`#${field}`)?.closest(".ac-chipfield")?.querySelectorAll(".ac-token__label") ?? [])].map(
+    (l) => l.textContent,
+  );
 
-/** Acme's Members (as its owner, who may invite, unless the state says otherwise). */
-async function members(state = seedState()) {
-  const r = await renderApp(`/org/${ORG_ID}/settings/members`, { api: createFakeApi(state) });
+const SUPORTE = "role-suporte";
+const SUPORTE_CH = "00000000-0000-4000-8000-0000000000c3";
+const MAX_ID = "00000000-0000-4000-8000-0000000000a3";
+
+/** Acme with a "Suporte" cargo: a private #suporte limited to it, and Max, who answers only Suporte; and Lodi. */
+function withSupport(state = seedState()) {
+  const [admin, everyone] = seedRoles() as [OrgRole, OrgRole];
+  state.roles = [
+    admin,
+    {
+      ...admin,
+      id: SUPORTE,
+      name: "Suporte",
+      icon: "headset",
+      color: "teal",
+      position: 1,
+      permissions: ["approve_actions"],
+      hoist: false,
+    },
+    { ...everyone, position: 2 },
+  ];
+  state.channels.push({
+    id: SUPORTE_CH,
+    name: "suporte",
+    topic: "",
+    visibility: "private",
+    audienceRoleIds: [SUPORTE],
+    isMember: true,
+    createdAt: new Date().toISOString(),
+  });
+  state.channelMembers[SUPORTE_CH] = [{ type: "person", id: "u-walter" }];
+  const ada = state.agents.find((a) => a.id === ADA_ID) as Agent;
+  state.agents.push({
+    ...ada,
+    id: MAX_ID,
+    name: "Max",
+    handle: "max",
+    role: "Atendimento",
+    audienceMode: "people",
+    audience: { mode: "people", userIds: [], roleIds: [SUPORTE] },
+  });
+  return withRightHand(state);
+}
+
+/** People › Membros (as Acme's owner, who may invite, unless the state says otherwise). */
+async function members(state = seedState(), path = "members", api = createFakeApi(state)) {
+  const r = await renderApp(`/org/${ORG_ID}/settings/${path}`, { api });
   await settle(6);
   return { ...r, state };
 }
+/** `run`, each call held until `release`: it stays pending meanwhile. */
+function hold<A extends unknown[], R>(run: (...args: A) => Promise<R>) {
+  let open = () => {};
+  return {
+    run: async (...args: A) => {
+      await new Promise<void>((r) => {
+        open = r;
+      });
+      return run(...args);
+    },
+    release: async () => {
+      await act(async () => open());
+      await settle(6);
+    },
+  };
+}
+/** Off: its own `disabled`, or inside a `Locked` that runs. */
+const off = (el: HTMLElement) => (el as HTMLButtonElement).disabled || el.closest("fieldset[disabled]") !== null;
 /** The page's own "Convidar pessoas" (the first of that name). */
 async function openInvite() {
   const [open] = screen().getAllByRole("button", { name: "Convidar pessoas" });
   await click(open as HTMLElement);
-  await settle(2);
+  await settle(4);
   return dialog();
 }
 /** Opens a select or a menu from its trigger, by keyboard. */
 async function openFrom(trigger: HTMLElement) {
   trigger.focus();
   await act(async () => fireEvent.keyDown(trigger, { key: "Enter" }));
+}
+/** Ticks cargos in the dialog's Cargo menu, then closes it. */
+async function pickRoles(...names: string[]) {
+  await openFrom(within(dialog()).getByRole("button", { name: /^Cargo/ }));
+  for (const name of names) await click(screen().getByRole("menuitemcheckbox", { name }));
+  await act(async () => fireEvent.keyDown(screen().getByRole("menu"), { key: "Escape" }));
+  await settle(2);
+}
+/** Types addresses into Para, then Enter. */
+async function address(...emails: string[]) {
+  const to = within(dialog()).getByLabelText("Para");
+  await type(to, emails.join(", "));
+  await key(to, "Enter");
 }
 /** Swaps the clipboard for one that keeps what's written, while `run` runs. */
 async function withClipboard(run: () => Promise<unknown>) {
@@ -76,289 +169,282 @@ const invitation = (
   url: `http://localhost:3000/invite/tok-${over.id}`,
   ...over,
 });
+const link = (over: Partial<InviteLink> & Pick<InviteLink, "id">): InviteLink => ({
+  url: `http://localhost:3000/invite/${over.id}`,
+  expiresAt: new Date(Date.now() + 6 * 86_400_000 + 60_000).toISOString(),
+  createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+  createdBy: "Walter",
+  createdByUserId: "u-walter",
+  waiting: 0,
+  plain: true,
+  roleIds: [],
+  channelIds: [],
+  agentIds: [],
+  maxUses: null,
+  uses: 0,
+  ...over,
+});
 
-describe("the invite dialog", () => {
-  /** The line under the dialog's title ("Passo 2 de 4 · Cargo"), and what the host asks in its bubble. */
-  const stepOf = () => dialog().querySelector(".ac-dialog__sub")?.textContent ?? null;
-  const asked = () => dialog().querySelector(".auth__title")?.textContent;
-  const press = (name: string | RegExp) => click(within(dialog()).getByRole("button", { name }));
-  const option = (name: RegExp) => within(dialog()).getByRole("button", { name });
-  const box = (name: string) => within(dialog()).getByRole("checkbox", { name });
-
-  test("the page's buttons are the page head's own, so on a phone they fill its row and wrap inside the margins", async () => {
-    await members();
-    const actions = document.querySelector(".ac-pagehead__actions") as HTMLElement;
-    for (const name of ["Copiar link de convite", "Convidar pessoas"])
-      expect(within(actions).getByRole("button", { name }).parentElement?.className).toBe(actions.className);
-  });
-
-  test("a step at a time, the host asking each: Quem, Cargo, Onde começam, Recado; Voltar keeps what was chosen", async () => {
-    await members();
+describe("the invite dialog, one screen", () => {
+  test("E-mail or Link on top, then Para, Cargo, Canais and Agentes: each label and its ⓘ over its field", async () => {
+    await members(withSupport());
     const invite = await openInvite();
-    expect(stepOf()).toBe("Passo 1 de 4 · Quem");
-    expect(asked()).toBe("Quem você quer trazer?");
-    expect(invite.querySelectorAll(".ac-steps__bar")).toHaveLength(4);
-    expect(invite.querySelectorAll('.ac-steps__bar[data-done="true"]')).toHaveLength(1);
-    // The host is the workspace's first agent, as on the invitation page.
-    expect(invite.querySelector(".invite-host .ac-avatar")?.getAttribute("data-kind")).toBe("agent");
-    // Nothing to invite yet: Cancelar on the left, Continuar waits.
-    expect(within(invite).getByRole("button", { name: "Cancelar" })).toBeTruthy();
-    expect(within(invite).getByRole("button", { name: "Continuar" }).hasAttribute("disabled")).toBe(true);
-    const emails = within(invite).getByLabelText("E-mails");
-    await type(emails, "Nova@Acme.com");
-    // An address typed and not a chip yet already counts.
-    expect(within(invite).getByRole("button", { name: "Continuar" }).hasAttribute("disabled")).toBe(false);
-    await act(async () => fireEvent.keyDown(emails, { key: "," }));
-    await type(emails, "outra@acme.com");
-    await act(async () => fireEvent.blur(emails));
-    expect(chipsIn(invite)).toEqual(["nova@acme.com", "outra@acme.com"]);
-    expect(invite.textContent).toContain("Cole uma lista, se quiser: vírgula, espaço ou uma por linha.");
-    expect(within(invite).getByRole("button", { name: "Continuar com 2" })).toBeTruthy();
-    // Enter on nothing goes on.
-    await act(async () => fireEvent.keyDown(emails, { key: "Enter" }));
-    await settle(2);
-
-    expect(stepOf()).toBe("Passo 2 de 4 · Cargo");
-    expect(asked()).toBe("Com que cargo essas pessoas entram?");
-    expect(dialog().querySelectorAll('.ac-steps__bar[data-done="true"]')).toHaveLength(2);
-    expect(option(/^Membro/).getAttribute("aria-pressed")).toBe("true");
-    expect(option(/^Membro/).textContent).toContain("O que todos podem");
-    // Each role with its mark and what it gives.
-    expect(option(/^Admin/).querySelector(".ac-rolemark")).toBeTruthy();
-    expect(option(/^Admin/).textContent).toContain("Pode tudo, menos o que é só do dono.");
-    await click(option(/^Admin/));
-    expect(option(/^Admin/).getAttribute("aria-pressed")).toBe("true");
-    await press("Voltar");
-    expect(stepOf()).toBe("Passo 1 de 4 · Quem");
-    expect(chipsIn(dialog())).toEqual(["nova@acme.com", "outra@acme.com"]);
-    await press("Continuar com 2");
-    expect(option(/^Admin/).getAttribute("aria-pressed")).toBe("true");
-    await press("Continuar");
-    await settle(4);
-
-    expect(stepOf()).toBe("Passo 3 de 4 · Onde começam");
-    expect(asked()).toBe("Em que canais essas pessoas já entram?");
-    // #general first, always on; the others with who is there, the agents by face and name.
-    const [first] = within(dialog()).getAllByRole("checkbox");
-    expect(first).toBe(box("#general"));
-    expect(box("#general").getAttribute("aria-checked")).toBe("true");
-    expect(box("#general").hasAttribute("disabled")).toBe(true);
-    expect(dialog().textContent).toContain("Todo mundo entra");
-    expect(box("#eng").getAttribute("aria-checked")).toBe("false");
-    const eng = box("#eng").closest(".invite-chan") as HTMLElement;
-    expect(eng.querySelector(".invite-chan__sub")?.textContent).toBe("2 pessoas · Ada e Atlas");
-    expect(eng.querySelectorAll(".invite-chan__faces .ac-avatar")).toHaveLength(2);
-    await click(box("#eng"));
-    expect(box("#eng").getAttribute("aria-checked")).toBe("true");
-    await press("Continuar");
-
-    expect(stepOf()).toBe("Passo 4 de 4 · Recado");
-    expect(asked()).toBe("Quer que eu diga algo no convite?");
-    await type(within(dialog()).getByLabelText("Recado no e-mail"), "Vem para a Acme");
-    // The email as it arrives, in the server's own words.
-    const mail = dialog().querySelector(".invite-mail-fig") as HTMLElement;
-    expect(mail.textContent).toContain("Assim chega para Nova e Outra");
-    expect(mail.textContent).toContain("agentes.chat · para nova@acme.com e mais 1");
-    expect(mail.textContent).toContain("Você recebeu um convite para um workspace no agentes.chat");
-    expect(mail.textContent).toContain("Walter (walter@acme.com.br) convidou você para entrar na Acme como membro.");
-    expect(mail.textContent).toContain("Walter: “Vem para a Acme”");
-    expect(mail.textContent).toContain("Aceitar convite");
-    expect(within(dialog()).getByRole("button", { name: "Convidar 2 pessoas" })).toBeTruthy();
-    await press("Voltar");
-    expect(stepOf()).toBe("Passo 3 de 4 · Onde começam");
-    expect(box("#eng").getAttribute("aria-checked")).toBe("true");
-  });
-
-  test("whoever is being invited never reads as invited already, though the list has them before Convidar is answered", async () => {
-    const state = seedState();
-    const api = createFakeApi(state);
-    const send = api.orgs.inviteMany;
-    let answer = () => {};
-    const answered = new Promise<void>((resolve) => {
-      answer = resolve;
-    });
-    api.orgs.inviteMany = async (...args) => {
-      const said = await send(...args);
-      await answered;
-      return said;
-    };
-    const { sockets } = await renderApp(`/org/${ORG_ID}/settings/members`, { api });
-    await settle(6);
-    await act(async () => sockets.last().open());
-    await settle(2);
-    const invite = await openInvite();
-    await type(within(invite).getByLabelText("E-mails"), "lia.prado@example.com");
-    await press("Continuar");
-    await press("Continuar");
-    await press("Continuar");
-    expect(stepOf()).toBe("Passo 4 de 4 · Recado");
-    const mail = () => dialog().querySelector(".invite-mail-fig")?.textContent;
-    expect(mail()).toContain("Assim chega para Lia");
-    await press("Convidar 1 pessoa");
-    // Invited on the server, which says so on the socket before it answers.
-    await act(async () => sockets.last().push({ type: "event", scope: "org", event: { type: "org.members" } }));
-    await settle(6);
-    expect(state.invitations.some((i) => i.email === "lia.prado@example.com")).toBe(true);
-    expect(mail()).toContain("Assim chega para Lia");
-    expect(within(dialog()).getByRole("button", { name: "Convidar 1 pessoa" })).toBeTruthy();
-    await act(async () => answer());
-    await settle(6);
-    expect(asked()).toBe("Pronto, mandei o convite para Lia.");
-  });
-
-  test("a pasted address book, a role per person, then what became of each address, in place of the toasts", async () => {
-    const state = seedState();
-    state.invitations.push(
-      invitation({ id: "inv-bia", email: "bia@acme.com" }),
-      invitation({
-        id: "inv-rafa",
-        email: "rafa@acme.com",
-        status: "expired",
-        expiresAt: new Date(Date.now() - 86_400_000).toISOString(),
-      }),
+    // No steps, no host asking.
+    expect(invite.querySelector(".ac-steps")).toBeNull();
+    expect(invite.querySelector(".auth__ask")).toBeNull();
+    const how = within(invite).getByRole("radiogroup", { name: "Como convidar" });
+    expect(within(how).getByRole("radio", { name: "E-mail" }).getAttribute("aria-checked")).toBe("true");
+    // Every field the app's way: its label (and ⓘ) first, the control under it at the form's width.
+    const fields = [...invite.querySelectorAll(".ac-field")] as HTMLElement[];
+    expect(fields.map((f) => f.querySelector(".ac-field__label")?.textContent)).toEqual([
+      "Para",
+      "Cargo",
+      "Canais",
+      "Agentes",
+    ]);
+    for (const f of fields) {
+      expect(f.firstElementChild?.classList.contains("ac-hintline")).toBe(true);
+      expect(f.firstElementChild?.querySelector(".ac-hint")).toBeTruthy();
+    }
+    expect(hintOf("Para", invite).text).toBe("Cole uma lista, se quiser: vírgula, espaço ou uma por linha.");
+    expect(hintOf("Cargo", invite).text).toBe(
+      "O que a pessoa pode fazer. Cargos somam ao que Todos podem. Vale só para pessoas.",
     );
-    await members(state);
-    const invite = await openInvite();
-    const emails = within(invite).getByLabelText("E-mails");
-    // As a mail app copies them: names around the addresses, one in quotes with a comma.
-    const pasted = 'Ana Silva <ana@acme.com>, "Silva, Bia" <bia@acme.com>; João <joao@acme.com.br>, rafa@acme.com x@y';
-    await act(async () => fireEvent.paste(emails, { clipboardData: { getData: () => pasted } }));
-    expect(chipsIn(invite)).toEqual(["ana@acme.com", "bia@acme.com", "joao@acme.com.br", "rafa@acme.com", "x@y"]);
-    const chip = (email: string) => within(invite).getByText(email).closest(".email-chip") as HTMLElement;
-    // Someone in already, someone with an invitation waiting, an address to check: said, and not sent.
-    expect(chip("joao@acme.com.br").textContent).toContain("já está na Acme");
-    expect(chip("joao@acme.com.br").hasAttribute("data-soft")).toBe(true);
-    expect(chip("bia@acme.com").textContent).toContain("já convidado");
-    expect(chip("x@y").textContent).toContain("confira");
-    expect(chip("x@y").getAttribute("data-invalid")).toBe("true");
-    // No role inside a chip any more: that's the next step.
-    expect(within(invite).queryByRole("combobox")).toBeNull();
-    expect(invite.textContent).toContain("Confira os e-mails marcados: eles não recebem convite.");
-    // An expired invitation can be sent again: rafa counts.
-    await press("Continuar com 2");
+    expect(hintOf("Canais", invite).text).toBe("Onde a pessoa já entra. Os canais do cargo vêm marcados.");
+    expect(hintOf("Agentes", invite).text).toBe(
+      "Com quem a pessoa trabalha. Ficam no topo da lista dela. Um agente restrito passa a responder a ela.",
+    );
+    // Todos' "Membro" with no cargo; #general and Lodi stay, each saying why.
+    expect(within(invite).getByRole("button", { name: /^Cargo/ }).textContent).toBe("Membro");
+    expect(tokensOf("invite-channels")).toEqual(["general"]);
+    expect(tokensOf("invite-agents")).toEqual(["Lodi"]);
+    expect(within(invite).queryByRole("button", { name: "Remover #general" })).toBeNull();
+    expect(within(invite).queryByRole("button", { name: "Remover Lodi" })).toBeNull();
+    expect(invite.textContent).toContain("Todo mundo entra no #general.");
+    expect(invite.textContent).toContain("Todo mundo tem o Lodi.");
+    // Nothing to send yet; Para has the focus.
+    expect(within(invite).getByRole("button", { name: "Convidar" }).hasAttribute("disabled")).toBe(true);
+    expect(document.activeElement === within(invite).getByLabelText("Para")).toBe(true);
+  });
 
-    // A role for each person: each its own select, Membro to start.
-    await press("Um cargo para cada pessoa");
-    const ana = within(dialog()).getByRole("combobox", { name: "Cargo de ana@acme.com" });
-    const rafa = within(dialog()).getByRole("combobox", { name: "Cargo de rafa@acme.com" });
-    expect(ana.textContent).toContain("Membro");
-    await openFrom(ana);
-    await click(screen().getByRole("option", { name: /^Admin/ }));
-    await settle(2);
-    expect(ana.textContent).toContain("Admin");
-    expect(rafa.textContent).toContain("Membro");
-    // The same role for everyone again, and back: each one's choice is still there.
-    await press("O mesmo cargo para todo mundo");
-    expect(within(dialog()).queryByRole("combobox")).toBeNull();
-    await press("Um cargo para cada pessoa");
-    expect(within(dialog()).getByRole("combobox", { name: "Cargo de ana@acme.com" }).textContent).toContain("Admin");
-    await press("Continuar");
-    await settle(4);
-    await press("Continuar");
-    await type(within(dialog()).getByLabelText("Recado no e-mail"), "  Vem para a Acme  ");
-    await press("Convidar 2 pessoas");
+  test("a cargo brings its channels and agents, taken out stays out; the send carries them and closes on a toast", async () => {
+    const { state } = await members(withSupport());
+    await openInvite();
+    await address("marina@example.com");
+    expect(within(dialog()).getByRole("button", { name: "Convidar 1 pessoa" })).toBeTruthy();
+    await pickRoles("Suporte");
+    expect(within(dialog()).getByRole("button", { name: /^Cargo/ }).textContent).toBe("Suporte");
+    // Its channel and its agent come in, fading in, each saying where it came from.
+    expect(tokensOf("invite-channels")).toEqual(["general", "suporte"]);
+    expect(tokensOf("invite-agents")).toEqual(["Lodi", "Max"]);
+    const suporte = within(dialog()).getByText("suporte").closest(".ac-token") as HTMLElement;
+    expect(suporte.hasAttribute("data-fresh")).toBe(true);
+    expect(suporte.textContent).toContain("Vem com o cargo Suporte.");
+    await click(within(dialog()).getByRole("button", { name: "Remover Max" }));
+    expect(tokensOf("invite-agents")).toEqual(["Lodi"]);
+    // ⌘↵ sends.
+    await key(within(dialog()).getByLabelText("Para"), "Enter", { metaKey: true });
     await settle(6);
     expect(state.calls.find((c) => c.method === "orgs.inviteMany")?.args).toEqual([
       ORG_ID,
-      {
-        invites: [
-          { email: "ana@acme.com", roleIds: [ADMIN_ROLE_ID] },
-          { email: "rafa@acme.com", roleIds: [] },
-        ],
-        channelIds: [],
-        note: "Vem para a Acme",
-      },
+      { emails: ["marina@example.com"], roleIds: [SUPORTE], channelIds: [SUPORTE_CH], agentIds: [] },
     ]);
+    expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).toBeNull();
+    const toast = screen().getByText("Convite enviado para marina@example.com.").closest(".ac-toast") as HTMLElement;
+    // Inviting more opens with the same choices: the cargo, its channel, and Max still out.
+    await click(within(toast).getByRole("button", { name: "Convidar mais pessoas" }));
+    await settle(4);
+    expect(within(dialog()).getByRole("button", { name: /^Cargo/ }).textContent).toBe("Suporte");
+    expect(tokensOf("invite-channels")).toEqual(["general", "suporte"]);
+    expect(tokensOf("invite-agents")).toEqual(["Lodi"]);
+  });
 
-    // Enviados: every address with what became of it, the host's answer above them; no step any more.
-    expect(stepOf()).toBeNull();
-    expect(dialog().querySelector(".ac-steps")).toBeNull();
-    expect(asked()).toBe("Pronto, mandei o convite para Ana.");
-    expect(dialog().textContent).toContain("Quando Ana entrar, eu recebo no #general e te aviso.");
-    const rows = [...dialog().querySelectorAll(".invite-person")].map((r) => r.textContent);
-    expect(rows).toEqual([
-      "Aana@acme.com · AdminEnviado",
-      "Bbia@acme.comjá tinha convite",
-      "Jjoao@acme.com.brjá está na Acme",
-      // The server answers that one has an invitation still.
-      "Rrafa@acme.comjá tinha convite",
-      "Xx@ye-mail inválido",
+  test("Para: a pasted address book, who is in, invited or no address said on their tokens; only good ones count", async () => {
+    const state = seedState();
+    state.invitations.push(invitation({ id: "inv-bia", email: "bia@acme.com" }));
+    await members(state);
+    const invite = await openInvite();
+    const to = within(invite).getByLabelText("Para");
+    // As a mail app copies them: names around the addresses, one in quotes with a comma.
+    const pasted = 'Ana Silva <ana@acme.com>, "Silva, Bia" <bia@acme.com>; João <joao@acme.com.br>, x@y';
+    await act(async () => fireEvent.paste(to, { clipboardData: { getData: () => pasted } }));
+    expect(tokensOf("invite-to")).toEqual(["ana@acme.com", "bia@acme.com", "joao@acme.com.br", "x@y"]);
+    const token = (email: string) => within(invite).getByText(email).closest(".ac-token") as HTMLElement;
+    expect(token("joao@acme.com.br").getAttribute("data-state")).toBe("soft");
+    expect(token("joao@acme.com.br").textContent).toContain("já está na Acme");
+    expect(token("bia@acme.com").textContent).toContain("já convidado");
+    expect(token("x@y").getAttribute("data-state")).toBe("invalid");
+    expect(token("x@y").textContent).toContain("confira");
+    // The line only when needed, in the danger tone for an address to check.
+    const line = invite.querySelector("#invite-to-line") as HTMLElement;
+    expect(line.textContent).toBe("Confira os e-mails marcados: eles não recebem convite.");
+    expect(line.classList.contains("ac-field__error")).toBe(true);
+    expect(within(invite).getByRole("button", { name: "Convidar 1 pessoa" })).toBeTruthy();
+    // Backspace takes the last one back; the line goes with what it was about.
+    await key(to, "Backspace");
+    expect(tokensOf("invite-to")).toEqual(["ana@acme.com", "bia@acme.com", "joao@acme.com.br"]);
+    expect(invite.querySelector("#invite-to-line")?.textContent).toBe("Quem já está ou já foi convidado fica de fora.");
+  });
+
+  test("agents: each one says whether it can go and why; a restricted one you open starts answering the person", async () => {
+    const state = withSupport();
+    const atlas = state.agents.find((a) => a.id === ATLAS_ID) as Agent;
+    Object.assign(atlas, { audienceMode: "people", audience: { mode: "people", userIds: [], roleIds: [] } });
+    // Ada reads João's mailbox: opening her to someone new would take it.
+    const ada = state.agents.find((a) => a.id === ADA_ID) as Agent;
+    Object.assign(ada, { audienceMode: "people", audience: { mode: "people", userIds: [], roleIds: [] } });
+    state.mailLoss = {
+      [ADA_ID]: [{ accountId: "mb-1", address: "joao@acme.com.br", ownerUserId: "u-joao", ownerName: "João" }],
+    };
+    const { router } = await members(state);
+    await openInvite();
+    const field = within(dialog()).getByRole("combobox", { name: "Agentes" });
+    await key(field, "ArrowDown");
+    await settle(4);
+    const list = screen().getByRole("listbox", { name: "Agentes" });
+    const row = (name: string) => within(list).getByRole("option", { name: new RegExp(`^${name}`) });
+    expect(row("Lodi").getAttribute("aria-disabled")).toBe("true");
+    expect(row("Lodi").textContent).toContain("Todo mundo tem o Lodi");
+    expect(row("Atlas").textContent).toContain("Restrito · você libera");
+    expect(row("Max").textContent).toContain("Restrito · você libera");
+    expect(row("Ada").textContent).toContain("Lê o e-mail de João");
+    await click(row("Atlas"));
+    expect(tokensOf("invite-agents")).toEqual(["Lodi", "Atlas"]);
+    expect(dialog().textContent).toContain("Atlas passa a responder a quem entrar por este convite.");
+    // A mailbox is never taken unasked: Ada's row opens her page, where that is decided.
+    await click(row("Ada"));
+    await settle(4);
+    expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).toBeNull();
+    expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/agents/${ADA_ID}`);
+  });
+
+  test("with a cargo, Max goes by it; a cargo that can't talk to agents leaves the field off and says so", async () => {
+    const state = withSupport();
+    const everyone = state.roles?.find((r) => r.kind === "everyone") as OrgRole;
+    everyone.permissions = everyone.permissions.filter((k) => k !== "talk_to_agents");
+    await members(state);
+    await openInvite();
+    const field = within(dialog()).getByRole("combobox", { name: "Agentes" }) as HTMLInputElement;
+    expect(field.disabled).toBe(true);
+    expect(dialog().textContent).toContain("Com esse cargo, a pessoa não conversa com agentes.");
+    // Admin can do anything, talking to agents too.
+    await pickRoles("Admin");
+    expect(field.disabled).toBe(false);
+    expect(dialog().textContent).toContain("Com Admin, a pessoa vê todos os agentes.");
+  });
+
+  test("refusals say the cause and the way out, nothing typed is lost; no answer offers to try again", async () => {
+    const state = seedState();
+    state.inviteManyError = new ApiError(400, "invitation.channel", "One of these channels can't go", {
+      channelId: ENG_ID,
+      name: "eng",
+      why: "archived",
+    });
+    await members(state);
+    await openInvite();
+    await address("nova@example.com");
+    const channels = within(dialog()).getByRole("combobox", { name: "Canais" });
+    await key(channels, "ArrowDown");
+    await settle(4);
+    await click(within(screen().getByRole("listbox", { name: "Canais" })).getByRole("option", { name: /^#eng/ }));
+    await click(within(dialog()).getByRole("button", { name: "Convidar 1 pessoa" }));
+    await settle(6);
+    expect(dialog().textContent).toContain("O #eng foi arquivado. Tire o canal para enviar.");
+    expect((within(dialog()).getByText("eng").closest(".ac-token") as HTMLElement).getAttribute("data-state")).toBe(
+      "invalid",
+    );
+    expect(tokensOf("invite-to")).toEqual(["nova@example.com"]);
+
+    state.inviteManyError = new NetworkError(new Error("offline"));
+    await click(within(dialog()).getByRole("button", { name: "Remover #eng" }));
+    await click(within(dialog()).getByRole("button", { name: "Convidar 1 pessoa" }));
+    await settle(6);
+    expect(dialog().textContent).toContain("Não deu para falar com o servidor. Nada foi enviado.");
+    state.inviteManyError = undefined;
+    await click(within(dialog()).getByRole("button", { name: "Tentar de novo" }));
+    await settle(6);
+    expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).toBeNull();
+    expect(text()).toContain("Convite enviado para nova@example.com.");
+  });
+
+  test("Link: the workspace's link at the defaults, renewed; any choice empties it until Criar link makes one", async () => {
+    const state = withSupport();
+    state.inviteLinks = [link({ id: "link-plain" })];
+    await members(state);
+    await openInvite();
+    await click(within(dialog()).getByRole("radio", { name: "Link" }));
+    await settle(6);
+    // Opened at the defaults: the workspace's own link, renewed to 30 days.
+    expect(state.calls.find((c) => c.method === "invites.createLink")?.args).toEqual([
+      ORG_ID,
+      { roleIds: [], channelIds: [], agentIds: [], expiresIn: "30d", maxUses: null },
     ]);
-    // The sent one in the ok color, its check drawn in CSS; the others quiet.
-    const sentRow = dialog().querySelector('.invite-person[data-ok="true"]') as HTMLElement;
-    expect(sentRow.querySelector(".invite-state svg")).toBeTruthy();
-    expect(sentRow.querySelector(".invite-state")?.hasAttribute("data-skip")).toBe(false);
-    // This screen says it: no toasts.
-    expect(text()).not.toContain("Convite enviado para ana@acme.com.");
-    expect(text()).not.toContain("rafa@acme.com já tem um convite pendente.");
-    await press("Concluir");
+    const field = () => within(dialog()).getByLabelText("Link") as HTMLInputElement;
+    expect(field().value).toBe("http://localhost:3000/invite/link-plain");
+    expect(dialog().querySelector("#invite-link-until")?.textContent).toMatch(/^Vale até \d+ \S+$/);
+    expect(hintOf("Link", dialog()).text).toBe("Quem abrir pede para entrar, e você aprova.");
+    expect([...dialog().querySelectorAll(".ac-field__label")].map((l) => l.textContent)).toEqual([
+      "Link",
+      "Cargo",
+      "Canais",
+      "Agentes",
+      "Validade",
+      "Máximo de pessoas",
+    ]);
+    // A cargo: the field empties, and the one button becomes Criar link in its place.
+    await pickRoles("Suporte");
+    expect(field().value).toBe("");
+    expect(field().placeholder).toBe("Crie o link para copiar");
+    expect(dialog().querySelector("#invite-link-until")?.textContent).toBe("Vale 30 dias depois de criado.");
+    const make = within(dialog()).getByRole("button", { name: "Criar link" });
+    expect(make.className).toContain("ac-btn--primary");
+    await click(make);
+    await settle(6);
+    expect(state.calls.filter((c) => c.method === "invites.createLink").at(-1)?.args).toEqual([
+      ORG_ID,
+      { roleIds: [SUPORTE], channelIds: [SUPORTE_CH], agentIds: [MAX_ID], expiresIn: "30d", maxUses: null },
+    ]);
+    expect(field().value).toBe("http://localhost:3000/invite/link-2");
+    const writes = await withClipboard(() => click(within(dialog()).getByRole("button", { name: "Copiar link" })));
+    expect(writes).toEqual(["http://localhost:3000/invite/link-2"]);
+    expect(within(dialog()).getByRole("button", { name: "Copiado" })).toBeTruthy();
+    // Back at the defaults: the workspace's link again.
+    await pickRoles("Suporte");
+    expect(field().value).toBe("http://localhost:3000/invite/link-plain");
+    await click(within(dialog()).getByRole("button", { name: "Concluir" }));
     await settle(2);
     expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).toBeNull();
-    const list = screen().getByRole("region", { name: "Convites enviados" });
-    const sent = within(list).getByRole("group", { name: "Convite para ana@acme.com" });
-    expect(sent.textContent).toContain("Admin · agora");
-    expect(sent.textContent).toMatch(/Expira em \d dias/);
   });
 
-  test("an address the server reads as none goes back to the first step, marked, with the rest said sent", async () => {
-    const state = seedState();
+  test("Link: while a link is made the whole dialog waits on it, the switch and Concluir too, and Esc keeps it", async () => {
+    const state = withSupport();
+    state.inviteLinks = [link({ id: "link-plain" })];
     const api = createFakeApi(state);
-    const many = api.orgs.inviteMany;
-    api.orgs.inviteMany = async (orgId, input) =>
-      (await many(orgId, input)).map((r) =>
-        r.email === "ruim@acme.com" ? { email: r.email, status: "invalid_email" as const } : r,
-      );
-    await renderApp(`/org/${ORG_ID}/settings/members`, { api });
-    await settle(6);
+    const make = hold(api.invites.createLink);
+    api.invites.createLink = make.run;
+    await members(state, "members", api);
     await openInvite();
-    const emails = within(dialog()).getByLabelText("E-mails");
-    await act(async () =>
-      fireEvent.paste(emails, { clipboardData: { getData: () => "nova@acme.com, ruim@acme.com" } }),
+    await click(within(dialog()).getByRole("radio", { name: "Link" }));
+    // Opening at the defaults renews the workspace's link: the dialog waits on that too.
+    expect(off(within(dialog()).getByRole("radio", { name: "E-mail" }))).toBe(true);
+    await make.release();
+    expect(off(within(dialog()).getByRole("radio", { name: "E-mail" }))).toBe(false);
+    await pickRoles("Suporte");
+    await click(within(dialog()).getByRole("button", { name: "Criar link" }));
+    await settle(2);
+    expect(off(within(dialog()).getByRole("radio", { name: "E-mail" }))).toBe(true);
+    expect(off(within(dialog()).getByRole("button", { name: "Concluir" }))).toBe(true);
+    // The chip fields look it too, and their lists don't open.
+    expect(
+      dialog().querySelector("#invite-link-channels")?.closest(".ac-chipfield")?.getAttribute("aria-disabled"),
+    ).toBe("true");
+    await key(dialog(), "Escape");
+    expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).not.toBeNull();
+    await make.release();
+    expect((within(dialog()).getByLabelText("Link") as HTMLInputElement).value).toBe(
+      "http://localhost:3000/invite/link-2",
     );
-    await press("Continuar com 2");
-    await press("Continuar");
-    await settle(4);
-    await press("Continuar");
-    await press("Convidar 2 pessoas");
-    await settle(6);
-    expect(stepOf()).toBe("Passo 1 de 4 · Quem");
-    expect(chipsIn(dialog())).toEqual(["ruim@acme.com"]);
-    expect(dialog().textContent).toContain("Confira os e-mails marcados: eles não recebem convite.");
-    expect(text()).toContain("Convite enviado para nova@acme.com.");
-    expect(text()).toContain("ruim@acme.com não parece um e-mail válido.");
-  });
-
-  test("typed: Enter, a comma or leaving the field makes chips; Backspace takes the last back; Convidar mais pessoas starts over", async () => {
-    const { state } = await members();
-    const invite = await openInvite();
-    const emails = within(invite).getByLabelText("E-mails");
-    await type(emails, "Nova@Acme.com");
-    await act(async () => fireEvent.keyDown(emails, { key: "," }));
-    await type(emails, "outra@acme.com");
-    await act(async () => fireEvent.blur(emails));
-    expect(chipsIn(invite)).toEqual(["nova@acme.com", "outra@acme.com"]);
-    expect(emails.getAttribute("placeholder")).toBe("Mais e-mails…");
-    await act(async () => fireEvent.keyDown(emails, { key: "Backspace" }));
-    expect(chipsIn(invite)).toEqual(["nova@acme.com"]);
-    // One person: the host names them.
-    await act(async () => fireEvent.keyDown(emails, { key: "Enter" }));
-    expect(asked()).toBe("Com que cargo Nova entra?");
-    await press("Continuar");
-    await settle(4);
-    expect(asked()).toBe("Em que canais Nova já entra?");
-    await press("Continuar");
-    expect(dialog().querySelector(".invite-mail-label")?.textContent).toBe("Assim chega para Nova");
-    await press("Convidar 1 pessoa");
-    await settle(6);
-    expect(state.calls.find((c) => c.method === "orgs.inviteMany")?.args[1]).toEqual({
-      invites: [{ email: "nova@acme.com", roleIds: [] }],
-      channelIds: [],
-    });
-    expect(asked()).toBe("Pronto, mandei o convite para Nova.");
-    // More people: the first step again, empty.
-    await press("Convidar mais pessoas");
-    expect(stepOf()).toBe("Passo 1 de 4 · Quem");
-    expect(chipsIn(dialog())).toEqual([]);
+    expect(off(within(dialog()).getByRole("button", { name: "Concluir" }))).toBe(false);
   });
 
   test("one dialog from everywhere: the workspace menu and ⌘K open it over the page; who may not invite has neither", async () => {
@@ -374,15 +460,16 @@ describe("the invite dialog", () => {
     await settle(2);
     expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).toBeNull();
 
-    // ⌘K: "convidar" (or "invite") finds it; Enter opens it.
+    // ⌘K: "convidar" (or "invite") finds it, beside People › Convites; choosing it opens it.
     for (const words of ["convidar", "invite"]) {
       await act(async () => fireEvent.keyDown(window, { key: "k", metaKey: true }));
       const palette = screen().getByRole("combobox", { name: "Ir para, ou pedir a um agente" });
       await type(palette, words);
-      const first = within(screen().getByRole("listbox", { name: "Resultados" })).getAllByRole("option")[0];
-      expect(first?.textContent).toContain("Convidar pessoas");
-      expect(first?.textContent).toContain("por e-mail ou link");
-      await act(async () => fireEvent.keyDown(palette, { key: "Enter" }));
+      const found = within(screen().getByRole("listbox", { name: "Resultados" }))
+        .getAllByRole("option")
+        .find((o) => o.textContent?.includes("Convidar pessoas")) as HTMLElement;
+      expect(found.textContent).toContain("por e-mail ou link");
+      await click(found);
       await settle(2);
       expect(dialog()).toBeTruthy();
       await click(within(dialog()).getByRole("button", { name: "Cancelar" }));
@@ -400,7 +487,7 @@ describe("the invite dialog", () => {
     expect(screen().queryByRole("option", { name: /Convidar pessoas/ })).toBeNull();
   });
 
-  test("a channel's Adicionar: the address and that channel come chosen; Convidar mais pessoas keeps the channel", async () => {
+  test("a channel's Adicionar: the address and that channel come chosen, the channel saying so", async () => {
     const state = seedState();
     await renderApp(`/org/${ORG_ID}/c/${ENG_ID}`, { api: createFakeApi(state) });
     await settle(6);
@@ -416,65 +503,135 @@ describe("the invite dialog", () => {
     expect(within(add).queryByRole("button", { name: /^Convidar .*@/ })).toBeNull();
     await type(search, " Nova@Estudio.com ");
     await click(within(add).getByRole("button", { name: "Convidar nova@estudio.com para a Acme e para #eng" }));
-    await settle(2);
+    await settle(4);
     // The invite dialog takes over: Adicionar and the channel's details close, so neither opens again over it.
     expect(screen().queryByRole("dialog", { name: "Adicionar a #eng" })).toBeNull();
     expect(screen().queryByRole("dialog", { name: "#eng" })).toBeNull();
-    // The dialog opens with that address, and the channel comes checked, saying why.
-    expect(chipsIn(dialog())).toEqual(["nova@estudio.com"]);
-    await press("Continuar");
-    await press("Continuar");
-    await settle(4);
-    expect(box("#eng").getAttribute("aria-checked")).toBe("true");
-    expect(dialog().textContent).toContain("O #eng já vem marcado: você convidou de lá.");
-    await press("Continuar");
-    await press("Convidar 1 pessoa");
+    expect(tokensOf("invite-to")).toEqual(["nova@estudio.com"]);
+    expect(tokensOf("invite-channels")).toEqual(["general", "eng"]);
+    expect(dialog().textContent).toContain("Você convidou daqui.");
+    await click(within(dialog()).getByRole("button", { name: "Convidar 1 pessoa" }));
     await settle(6);
     expect(state.calls.find((c) => c.method === "orgs.inviteMany")?.args[1]).toEqual({
-      invites: [{ email: "nova@estudio.com", roleIds: [] }],
+      emails: ["nova@estudio.com"],
+      roleIds: [],
       channelIds: [ENG_ID],
+      agentIds: [],
     });
-    expect(dialog().textContent).toContain("Quando Nova entrar, eu recebo no #general e #eng e te aviso.");
-    // More people go to the same channels.
-    await press("Convidar mais pessoas");
-    await type(within(dialog()).getByLabelText("E-mails"), "outra@estudio.com");
-    await press("Continuar");
-    await press("Continuar");
-    await settle(4);
-    expect(box("#eng").getAttribute("aria-checked")).toBe("true");
-  });
-
-  test("a channel's Adicionar: nothing typed lists who can come in, a search says what it missed, invite and create there", async () => {
-    await renderApp(`/org/${ORG_ID}/c/${ENG_ID}`, { api: createFakeApi(seedState()) });
-    await settle(6);
-    await click(within(screen().getByRole("main")).getByRole("button", { name: "Configurações do canal" }));
-    await settle(3);
-    const details = screen().getByRole("dialog", { name: "#eng" });
-    await click(within(details).getByRole("button", { name: "Membros" }));
-    await click(within(details).getByRole("button", { name: "Adicionar pessoa ou agente" }));
-    const add = screen().getByRole("dialog", { name: "Adicionar a #eng" });
-    expect(add.textContent).not.toContain("Ninguém");
-    expect(add.textContent).not.toContain("“”");
-    expect(within(add).getByRole("button", { name: "Criar agente" })).toBeTruthy();
-    await type(within(add).getByRole("searchbox", { name: "Buscar pessoa ou agente" }), "zzz");
-    expect(add.textContent).toContain("Ninguém fora do canal com “zzz”.");
-    await click(within(add).getByRole("button", { name: "Convidar pessoas" }));
-    await settle(2);
-    expect(screen().queryByRole("dialog", { name: "Adicionar a #eng" })).toBeNull();
-    // The invite dialog opens for that channel: it comes checked on the channels step.
-    await type(within(dialog()).getByLabelText("E-mails"), "nova@estudio.com");
-    await press("Continuar");
-    await press("Continuar");
-    await settle(4);
-    expect(box("#eng").getAttribute("aria-checked")).toBe("true");
   });
 });
 
-describe("Members › Convites enviados", () => {
-  test("copy a link at any time, Reenviar keeps it, change the role; Cancelar waits for Desfazer, then revokes", async () => {
-    const state = seedState();
+describe("People › Convites", () => {
+  test("the tab counts who waits; Membros keeps the people, and a member who may not invite has no tab", async () => {
+    const state = seedState({
+      joinRequests: [
+        {
+          id: "r1",
+          name: "Ana Souza",
+          email: "ana@estudio.com",
+          note: null,
+          verified: true,
+          confirmed: true,
+          createdAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+          expiresAt: new Date(Date.now() + 12 * 86_400_000).toISOString(),
+        },
+      ],
+    });
+    await members(state);
+    const tabs = screen().getByRole("tablist");
+    expect(
+      within(tabs)
+        .getAllByRole("tab")
+        .map((t) => t.textContent),
+    ).toEqual(["Membros", "Convites 1"]);
+    expect(screen().queryByRole("region", { name: "Esperando você" })).toBeNull();
+    expect(text()).toContain("Walter");
+    cleanup();
+
+    const member = seedState();
+    if (member.me?.organizations[0]) member.me.organizations[0].role = "member";
+    await members(member);
+    expect(screen().queryByRole("tablist")).toBeNull();
+    expect(screen().getByRole("region", { name: "Quer trazer alguém para a Acme?" })).toBeTruthy();
+  });
+
+  test("links: their cargos, what they give and their state; Editar keeps the address, Desativar asks", async () => {
+    const state = withSupport();
+    state.inviteLinks = [
+      link({
+        id: "link-plain",
+        uses: 4,
+        expiresAt: "9999-12-31T00:00:00.000Z",
+        neverExpires: true,
+        createdBy: "Ana",
+        createdByUserId: "u-ana",
+      }),
+      link({
+        id: "link-sup",
+        plain: false,
+        roleIds: [SUPORTE],
+        channelIds: [SUPORTE_CH],
+        agentIds: [MAX_ID],
+        maxUses: 1,
+        uses: 0,
+        createdAt: new Date().toISOString(),
+      }),
+    ];
+    await members(state, "invites");
+    const links = screen().getByRole("region", { name: "Links" });
+    const sup = within(links).getByRole("group", { name: "Link Suporte" });
+    expect(sup.querySelector(".members-row__name")?.textContent).toBe("Suporte");
+    expect(sup.querySelector(".members-row__sub")?.textContent).toBe("#general e #suporte · Max");
+    expect(sup.querySelector(".members-row__state")?.textContent).toMatch(/^0 de 1 pessoa · expira em \d dias$/);
+    const plain = within(links).getByRole("group", { name: "Link Membro" });
+    expect(plain.querySelector(".members-row__sub")?.textContent).toBe("#general");
+    expect(plain.querySelector(".members-row__state")?.textContent).toBe("4 pessoas entraram · não expira · de Ana");
+
+    await openFrom(within(sup).getByRole("button", { name: "Mais ações para o link Suporte" }));
+    await click(screen().getByRole("menuitem", { name: "Editar" }));
+    await settle(4);
+    const edit = screen().getByRole("dialog", { name: "Link de convite" });
+    expect((within(edit).getByLabelText("Link") as HTMLInputElement).value).toBe(
+      "http://localhost:3000/invite/link-sup",
+    );
+    expect([...edit.querySelectorAll(".ac-field__label")].map((l) => l.textContent)).toEqual([
+      "Link",
+      "Cargo",
+      "Canais",
+      "Agentes",
+      "Validade",
+      "Máximo de pessoas",
+    ]);
+    expect(within(edit).getByRole("combobox", { name: "Validade" }).textContent).toMatch(/^Até \d+ \S+$/);
+    await click(within(edit).getByRole("button", { name: "Remover #suporte" }));
+    await click(within(edit).getByRole("button", { name: "Salvar" }));
+    await settle(6);
+    // Only what changed goes: the cargo and the agents stay as they are.
+    expect(state.calls.find((c) => c.method === "invites.editLink")?.args).toEqual([
+      ORG_ID,
+      "link-sup",
+      { channelIds: [], maxUses: 1 },
+    ]);
+    expect(text()).toContain("Link salvo. O endereço é o mesmo.");
+
+    await openFrom(within(links).getByRole("button", { name: "Mais ações para o link Suporte" }));
+    await click(screen().getByRole("menuitem", { name: "Desativar link" }));
+    const ask = screen().getByRole("dialog", { name: "Desativar o link?" });
+    await click(within(ask).getByRole("button", { name: "Desativar link" }));
+    await settle(6);
+    expect(state.calls.find((c) => c.method === "invites.turnOff")?.args).toEqual([ORG_ID, "link-sup"]);
+  });
+
+  test("e-mails: copy at any time, Reenviar keeps the link, Editar what it gives; Cancelar waits for Desfazer", async () => {
+    const state = withSupport();
     state.invitations.push(
-      invitation({ id: "inv-rafa", email: "rafael@acme.com", invitedBy: "João" }),
+      invitation({
+        id: "inv-rafa",
+        email: "rafael@acme.com",
+        invitedBy: "João",
+        roleIds: [SUPORTE],
+        channelIds: [SUPORTE_CH],
+      }),
       invitation({
         id: "inv-soon",
         email: "soon@acme.com",
@@ -490,50 +647,51 @@ describe("Members › Convites enviados", () => {
         createdAt: new Date(Date.now() - 9 * 86_400_000).toISOString(),
       }),
     );
-    await members(state);
-    const sent = () => screen().getByRole("region", { name: "Convites enviados" });
+    await members(state, "invites");
+    const sent = () => screen().getByRole("region", { name: "Convites por e-mail" });
     const row = (email: string) => within(sent()).getByRole("group", { name: `Convite para ${email}` });
+    const rafael = () => row("rafael@acme.com");
+    expect(rafael().querySelector(".members-row__sub")?.textContent).toBe("Suporte · #general e #suporte · de João");
     // Expiring within two days: said in the attention tone. One sent before links could be copied again: no Copy.
     const soon = row("soon@acme.com").querySelector(".members-row__state") as HTMLElement;
     expect(soon.textContent).toBe("Expira em 20 h");
     expect(soon.getAttribute("data-tone")).toBe("soon");
     expect(within(row("soon@acme.com")).queryByRole("button", { name: "Copiar link" })).toBeNull();
 
-    // Copy at any time: the same link as the email's.
-    const rafael = () => row("rafael@acme.com");
     const writes = await withClipboard(() => click(within(rafael()).getByRole("button", { name: "Copiar link" })));
     expect(writes).toEqual(["http://localhost:3000/invite/tok-inv-rafa"]);
     expect(text()).toContain("Link do convite de rafael@acme.com copiado. É o mesmo do e-mail.");
-    expect(within(rafael()).getByRole("button", { name: "Copiado" })).toBeTruthy();
-
-    // Reenviar: the same link, 7 more days.
     await click(within(rafael()).getByRole("button", { name: "Reenviar" }));
     await settle(4);
     expect(state.calls.find((c) => c.method === "orgs.resendInvitation")?.args).toEqual([ORG_ID, "inv-rafa"]);
-    expect(text()).toMatch(/Mandei de novo para rafael@acme\.com\. O link é o mesmo e vale até \d+ \S+\./);
     expect(rafael().querySelector(".members-row__state")?.textContent).toMatch(/^Mandado de novo · vale até \d+ \S+$/);
-    expect(within(rafael()).getByRole("button", { name: "Reenviar" }).hasAttribute("disabled")).toBe(true);
-    expect(state.invitations.find((i) => i.id === "inv-rafa")?.url).toBe("http://localhost:3000/invite/tok-inv-rafa");
 
-    // Mudar o cargo: nothing is sent, the link stays.
+    // Editar: what it gives, the same link, nothing sent.
     const more = () => within(rafael()).getByRole("button", { name: "Mais ações para rafael@acme.com" });
     await openFrom(more());
-    await click(screen().getByRole("menuitem", { name: "Mudar o cargo" }));
-    await settle(2);
-    const roles = screen().getByRole("dialog", { name: "Cargo de rafael@acme.com" });
-    expect(roles.textContent).toContain("Muda o que a pessoa recebe ao entrar. O link continua o mesmo.");
-    await openFrom(within(roles).getByRole("button", { name: "Cargo de rafael@acme.com" }));
-    await click(screen().getByRole("menuitemcheckbox", { name: "Admin" }));
-    await act(async () => fireEvent.keyDown(screen().getByRole("menu"), { key: "Escape" }));
-    await click(within(roles).getByRole("button", { name: "Salvar" }));
+    await click(screen().getByRole("menuitem", { name: "Editar" }));
+    await settle(4);
+    const edit = screen().getByRole("dialog", { name: "Convite de rafael@acme.com" });
+    expect(edit.textContent).toContain("Muda o que a pessoa recebe ao entrar. O link continua o mesmo.");
+    // Exactly what it gives: Max, the cargo's agent it left out, stays out.
+    expect([...edit.querySelectorAll("#edit-invitation-agents")].length).toBe(1);
+    expect(
+      [
+        ...(edit
+          .querySelector("#edit-invitation-agents")
+          ?.closest(".ac-chipfield")
+          ?.querySelectorAll(".ac-token__label") ?? []),
+      ].map((l) => l.textContent),
+    ).toEqual(["Lodi"]);
+    await click(within(edit).getByRole("button", { name: "Remover #suporte" }));
+    await click(within(edit).getByRole("button", { name: "Salvar" }));
     await settle(4);
     expect(state.calls.find((c) => c.method === "orgs.updateInvitation")?.args).toEqual([
       ORG_ID,
       "inv-rafa",
-      { roleIds: [ADMIN_ROLE_ID] },
+      { channelIds: [] },
     ]);
-    expect(text()).toContain("rafael@acme.com entra como Admin.");
-    expect(rafael().textContent).toContain("Admin · convite de João");
+    expect(text()).toContain("Convite de rafael@acme.com atualizado.");
     expect(state.calls.filter((c) => c.method === "orgs.resendInvitation")).toHaveLength(1);
 
     // Cancelar convite: off the list at once; Desfazer within the toast's time brings it back, nothing revoked.
@@ -547,18 +705,9 @@ describe("Members › Convites enviados", () => {
     await wait(700);
     expect(state.calls.some((c) => c.method === "orgs.revokeInvitation")).toBe(false);
 
-    // Left alone, it goes when the toast does.
-    undoWindow.ms = 40;
-    await openFrom(more());
-    await click(screen().getByRole("menuitem", { name: "Cancelar convite" }));
-    await wait(120);
-    await settle(4);
-    expect(state.calls.find((c) => c.method === "orgs.revokeInvitation")?.args).toEqual([ORG_ID, "inv-rafa"]);
-    expect(within(sent()).queryByRole("group", { name: "Convite para rafael@acme.com" })).toBeNull();
-
     // An expired one: Renovar or Tirar, which waits for Desfazer the same way.
+    undoWindow.ms = 40;
     const old = row("old@acme.com");
-    expect(old.textContent).toMatch(/enviado em \d+ \S+/);
     expect(old.querySelector(".members-row__state")?.textContent).toMatch(/^Expirou em \d+ \S+$/);
     await click(within(old).getByRole("button", { name: "Tirar" }));
     expect(text()).toContain("old@acme.com saiu da lista.");
@@ -567,47 +716,129 @@ describe("Members › Convites enviados", () => {
     expect(state.calls.filter((c) => c.method === "orgs.revokeInvitation").at(-1)?.args).toEqual([ORG_ID, "inv-old"]);
   });
 
-  test("the menu says Reenviar keeps the link, so cancel a leaked one; an older one gets a new link", async () => {
-    const state = seedState();
+  test("pending: while a row's call runs its other actions wait; Desativar's dialog holds until the link is off", async () => {
+    const state = withSupport();
     state.invitations.push(
-      invitation({ id: "inv-rafa", email: "rafael@acme.com" }),
-      // Sent before links lasted: nothing to copy, and sending it again changes its link.
-      invitation({ id: "inv-before", email: "before@acme.com", url: null }),
+      invitation({ id: "inv-rafa", email: "rafa@example.com" }),
+      invitation({
+        id: "inv-old",
+        email: "velho@example.com",
+        status: "expired",
+        expiresAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+      }),
     );
-    await members(state);
-    const sent = () => screen().getByRole("region", { name: "Convites enviados" });
-    const row = (email: string) => within(sent()).getByRole("group", { name: `Convite para ${email}` });
-    /** The row's "⋯" menu, open; the note under Cancelar convite, if any; then closed again. */
-    const noteIn = async (email: string) => {
-      await openFrom(within(row(email)).getByRole("button", { name: `Mais ações para ${email}` }));
-      const menu = screen().getByRole("menu");
-      const note = menu.querySelector(".ac-menu__note")?.textContent ?? null;
-      await act(async () => fireEvent.keyDown(menu, { key: "Escape" }));
-      await settle(2);
-      return note;
-    };
-    const lasts = "O link não muda ao reenviar. Se ele foi parar com quem não devia, cancele e convide de novo.";
+    state.inviteLinks = [link({ id: "link-sup", plain: false, roleIds: [SUPORTE] })];
+    const api = createFakeApi(state);
+    const resend = hold(api.orgs.resendInvitation);
+    api.orgs.resendInvitation = resend.run;
+    const turnOff = hold(api.invites.turnOff);
+    api.invites.turnOff = turnOff.run;
+    await members(state, "invites", api);
+    const row = (email: string) => screen().getByRole("group", { name: `Convite para ${email}` });
 
-    // A link that lasts: where Cancelar convite is, the menu says resending won't stop one that reached someone else.
-    expect(await noteIn("rafael@acme.com")).toBe(lasts);
-    await click(within(row("rafael@acme.com")).getByRole("button", { name: "Reenviar" }));
-    await settle(4);
-    expect(text()).toMatch(/Mandei de novo para rafael@acme\.com\. O link é o mesmo e vale até \d+ \S+\./);
-
-    // One sent before: no such note, and Reenviar says its link is new and the old one stops opening.
-    expect(await noteIn("before@acme.com")).toBeNull();
-    await click(within(row("before@acme.com")).getByRole("button", { name: "Reenviar" }));
-    await settle(4);
-    expect(text()).toMatch(/Mandei de novo para before@acme\.com, com um link novo que vale até \d+ \S+\./);
-    expect(text()).toContain("O link anterior não abre mais.");
-    expect(text()).not.toMatch(/before@acme\.com\. O link é o mesmo/);
-    // From then on it lasts like the others: a link to copy, and the note.
-    expect(within(row("before@acme.com")).getByRole("button", { name: "Copiar link" })).toBeTruthy();
-    expect(await noteIn("before@acme.com")).toBe(lasts);
-    // In English too.
-    expect(createI18n("en").t("members.invitations.linkStays")).toBe(
-      "Resending keeps the link. If it reached the wrong person, cancel and invite again.",
+    await click(within(row("rafa@example.com")).getByRole("button", { name: "Reenviar" }));
+    await settle(2);
+    expect(off(within(row("rafa@example.com")).getByRole("button", { name: "Copiar link" }))).toBe(true);
+    expect(off(within(row("rafa@example.com")).getByRole("button", { name: "Mais ações para rafa@example.com" }))).toBe(
+      true,
     );
+    await resend.release();
+    expect(off(within(row("rafa@example.com")).getByRole("button", { name: "Copiar link" }))).toBe(false);
+
+    await click(within(row("velho@example.com")).getByRole("button", { name: "Renovar" }));
+    await settle(2);
+    expect(off(within(row("velho@example.com")).getByRole("button", { name: "Tirar" }))).toBe(true);
+    await resend.release();
+
+    const links = screen().getByRole("region", { name: "Links" });
+    await openFrom(within(links).getByRole("button", { name: "Mais ações para o link Suporte" }));
+    await click(screen().getByRole("menuitem", { name: "Desativar link" }));
+    const ask = screen().getByRole("dialog", { name: "Desativar o link?" });
+    await click(within(ask).getByRole("button", { name: "Desativar link" }));
+    await settle(2);
+    expect(off(within(ask).getByRole("button", { name: "Cancelar" }))).toBe(true);
+    await key(ask, "Escape");
+    expect(screen().queryByRole("dialog", { name: "Desativar o link?" })).not.toBeNull();
+    await turnOff.release();
+    expect(screen().queryByRole("dialog", { name: "Desativar o link?" })).toBeNull();
+  });
+
+  test("a cargo above yours that someone higher gave: Editar sends only what changed, and it can go, never come back", async () => {
+    const state = withSupport();
+    // The viewer may not give Suporte here, as an inviter under it.
+    state.roles = (state.roles ?? []).map((r) => (r.id === SUPORTE ? { ...r, givable: false } : r));
+    state.inviteLinks = [
+      link({ id: "link-sup", plain: false, roleIds: [SUPORTE], channelIds: [SUPORTE_CH], agentIds: [MAX_ID] }),
+    ];
+    state.invitations.push(
+      invitation({ id: "inv-sup", email: "sup@example.com", roleIds: [SUPORTE], channelIds: [SUPORTE_CH] }),
+    );
+    await members(state, "invites");
+
+    // Editar link, the maximum alone: what it gives isn't sent, so nothing in it is checked for you again.
+    const links = screen().getByRole("region", { name: "Links" });
+    await openFrom(within(links).getByRole("button", { name: "Mais ações para o link Suporte" }));
+    await click(screen().getByRole("menuitem", { name: "Editar" }));
+    await settle(4);
+    const editLink = screen().getByRole("dialog", { name: "Link de convite" });
+    await openFrom(within(editLink).getByRole("combobox", { name: "Máximo de pessoas" }));
+    await click(screen().getByRole("option", { name: "10 pessoas" }));
+    await click(within(editLink).getByRole("button", { name: "Salvar" }));
+    await settle(6);
+    expect(state.calls.find((c) => c.method === "invites.editLink")?.args).toEqual([
+      ORG_ID,
+      "link-sup",
+      { maxUses: 10 },
+    ]);
+
+    // Editar convite: the cargo shows picked and marked; taken out, it can't be ticked again, and only that goes.
+    await openFrom(
+      within(screen().getByRole("group", { name: "Convite para sup@example.com" })).getByRole("button", {
+        name: "Mais ações para sup@example.com",
+      }),
+    );
+    await click(screen().getByRole("menuitem", { name: "Editar" }));
+    await settle(4);
+    const editInvitation = screen().getByRole("dialog", { name: "Convite de sup@example.com" });
+    await openFrom(within(editInvitation).getByRole("button", { name: /^Cargo/ }));
+    const above = () => screen().getByRole("menuitemcheckbox", { name: /^Suporte/ });
+    expect(above().getAttribute("aria-checked")).toBe("true");
+    expect(above().textContent).toContain("Acima do seu cargo");
+    await click(above());
+    expect(above().getAttribute("aria-checked")).toBe("false");
+    expect(above().getAttribute("aria-disabled")).toBe("true");
+    await act(async () => fireEvent.keyDown(screen().getByRole("menu"), { key: "Escape" }));
+    await settle(2);
+    await click(within(editInvitation).getByRole("button", { name: "Salvar" }));
+    await settle(6);
+    expect(state.calls.find((c) => c.method === "orgs.updateInvitation")?.args).toEqual([
+      ORG_ID,
+      "inv-sup",
+      { roleIds: [] },
+    ]);
+  });
+
+  test("past 8 rows: a search by e-mail or cargo and the kind of row; nothing open says so with a way to invite", async () => {
+    const state = withSupport();
+    for (let i = 0; i < 9; i++) state.invitations.push(invitation({ id: `inv-${i}`, email: `pessoa${i}@example.com` }));
+    state.invitations.push(invitation({ id: "inv-sup", email: "sup@example.com", roleIds: [SUPORTE] }));
+    await members(state, "invites");
+    const search = screen().getByRole("searchbox", { name: "Buscar e-mail ou cargo" });
+    await type(search, "suporte");
+    const rows = within(screen().getByRole("region", { name: "Convites por e-mail" })).getAllByRole("group");
+    expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual(["Convite para sup@example.com"]);
+    await type(search, "ninguém");
+    expect(text()).toContain("Nenhum convite com “ninguém”.");
+    cleanup();
+
+    await members(seedState(), "invites");
+    expect(text()).toContain("Nenhum convite aberto.");
+    expect(screen().getAllByRole("button", { name: "Convidar pessoas" }).length).toBeGreaterThan(1);
+  });
+
+  test("the rows keep the app's row room, 12 above and below, as Membros' people do", async () => {
+    const css = await Bun.file(new URL("../src/pages/members.css", import.meta.url).pathname).text();
+    expect(css).toMatch(/\.ac-list__row\.members-row \{\s*padding-block: var\(--space-3\);\s*\}/);
   });
 });
 
@@ -624,7 +855,7 @@ describe("Members › a member who may not invite", () => {
   test("suggests someone: the card, the dialog, its refusals in our words; then theirs, waiting, to take back", async () => {
     const { state } = await members(asMember());
     expect(screen().queryByRole("button", { name: "Convidar pessoas" })).toBeNull();
-    expect(screen().queryByRole("region", { name: "Convites enviados" })).toBeNull();
+    expect(screen().queryByRole("region", { name: "Convites por e-mail" })).toBeNull();
     const card = screen().getByRole("region", { name: "Quer trazer alguém para a Acme?" });
     expect(card.textContent).toContain(
       "Quem convida aqui é João. Sugira a pessoa: a sugestão chega e é aprovada com um clique.",
@@ -660,7 +891,7 @@ describe("Members › a member who may not invite", () => {
       ORG_ID,
       { email: "otto@estudio.com", note: "Freelancer de design" },
     ]);
-    expect(text()).toContain("Sugestão enviada. João vê em Membros e convites.");
+    expect(text()).toContain("Sugestão enviada. João vê em Convites.");
     expect(screen().queryByRole("dialog", { name: "Sugerir alguém para a Acme" })).toBeNull();
 
     const mine = screen().getByRole("region", { name: "Suas sugestões" });
@@ -686,9 +917,6 @@ describe("Members › a member who may not invite", () => {
     expect(en("members.suggest.refused.member", { email: "ana@acme.com", org: "Acme" })).toBe(
       "ana@acme.com is already in Acme.",
     );
-    expect(en("members.suggest.refused.invited", { email: "ana@acme.com", org: "Acme" })).toBe(
-      "ana@acme.com already has an invitation waiting.",
-    );
   });
 });
 
@@ -711,18 +939,17 @@ describe("a newcomer's first #general", () => {
     return r;
   };
 
-  test("the welcome on a sky, with who works there; Dizer oi goes to the composer; closed, it stays closed", async () => {
+  test("the welcome on a sky: the agents first, then the people; the channels they're in too; closed, it stays closed", async () => {
     await open(newcomer());
     const card = welcome() as HTMLElement;
     expect(card.querySelector("h2")?.textContent).toBe("Boas-vindas à Acme, Walter");
     expect(card.textContent).toContain(
-      "Aqui o time e os agentes trabalham juntos: escreva no #general ou chame um agente pelo nome.",
+      "Aqui o time e os agentes trabalham juntos: escreva no #general ou chame um agente pelo nome. Você também está em #eng.",
     );
-    // The people, then the agents, by their first names.
     expect([...card.querySelectorAll(".welcome-card__name")].map((n) => n.textContent)).toEqual([
-      "João",
       "Ada",
       "Atlas",
+      "João",
     ]);
     await click(within(card).getByRole("button", { name: "Dizer oi no #general" }));
     expect(document.activeElement === screen().getByRole("combobox", { name: "Mensagem para #general" })).toBe(true);
@@ -735,11 +962,23 @@ describe("a newcomer's first #general", () => {
     expect(welcome()).toBeNull();
   });
 
-  test("its ways in: a conversation with the first agent, the team", async () => {
-    const first = await open(newcomer());
-    await click(within(welcome() as HTMLElement).getByRole("button", { name: "Conversar com Ada" }));
+  test("the invitation's first agent greets them: pinned on top, it's whom Conversar com opens", async () => {
+    const state = newcomer();
+    state.sidebarView = {
+      agentSort: "workspace",
+      showAllAgents: false,
+      pins: { agents: [ATLAS_ID], channels: [], people: [] },
+    };
+    const first = await open(state);
+    const card = welcome() as HTMLElement;
+    expect([...card.querySelectorAll(".welcome-card__name")].map((n) => n.textContent)).toEqual([
+      "Atlas",
+      "Ada",
+      "João",
+    ]);
+    await click(within(card).getByRole("button", { name: "Conversar com Atlas" }));
     await settle(4);
-    expect(first.router.state.location.pathname).toBe(`/org/${ORG_ID}/dm/agent/${ADA_ID}`);
+    expect(first.router.state.location.pathname).toBe(`/org/${ORG_ID}/dm/agent/${ATLAS_ID}`);
     cleanup();
 
     const second = await open(newcomer());

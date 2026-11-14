@@ -266,6 +266,9 @@ export const emailName = (email: string) => email.split("@")[0] || email;
 /** "Ada, Atlas, and Theo", "Ada, Atlas e Theo", "Ada、Atlas、Theo": the language's own list (Intl.ListFormat), in `t`'s language. */
 export const joinNames = (names: readonly string[], t: TFunction): string => t("format.list", { names });
 
+/** A name held whole in running text ("#chamados-urgentes"): its hyphens never break the line (U+2011). */
+export const heldWhole = (name: string) => name.replaceAll("-", "\u2011");
+
 /** How many names a list of a team says before "and N more" (`namesText`): a ready-made team's four, whole. */
 export const NAMES_SHOWN = 4;
 

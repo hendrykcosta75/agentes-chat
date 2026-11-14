@@ -180,8 +180,9 @@ function sourceOf(t: TFunction, n: AppNotification, channelName: (id: string) =>
   else if (n.kind === "approval") [icon, label] = ["shield", t("notifications.source.approval")];
   else if (n.kind === "approval_cover" || n.kind === "right_hand_paused")
     [icon, label] = ["approve", t("settings.section.approvals")];
-  else if (n.kind === "join_request" || n.kind === "invitation_accepted")
-    [icon, label] = ["members", t("notifications.source.members")];
+  // A request opens People › Convites, where it is answered (ADR 0184); someone who joined, Members.
+  else if (n.kind === "join_request") [icon, label] = ["mail", t("settings.section.invites")];
+  else if (n.kind === "invitation_accepted") [icon, label] = ["members", t("notifications.source.members")];
   else if (n.kind === "composio_limit") [icon, label] = ["wallet", t("notifications.source.usage")];
   else if (n.kind === "skill_update") [icon, label] = ["book", t("skills.title")];
   else if (

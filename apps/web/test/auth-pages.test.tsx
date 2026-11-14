@@ -827,6 +827,23 @@ describe("Aceitar convite", () => {
     return { ...r, state };
   };
 
+  test("an invitation that gives a cargo and agents says them: the cargo in the hello, its agents as who works with you", async () => {
+    await openInvite({
+      roles: [{ name: "Suporte", color: "teal", icon: "headset" }],
+      yours: 1,
+      agents: [
+        { id: "agent-max", name: "Max", appearance: { color: "teal", eyes: "dots", accessory: "headset" } },
+        { id: ADA_ID, name: "Ada", appearance: { color: "amber", eyes: "dots", accessory: "beanie" } },
+      ],
+    });
+    expect(heading()).toBe("Oi. Ana chamou você para a Acme, como Suporte.");
+    const org = document.querySelector(".invite__org")?.textContent;
+    expect(org).toContain("Max vai trabalhar com você");
+    expect(org).not.toContain("trabalham lá");
+    // The invitation's first agent is the host.
+    expect(document.querySelector(".auth__ask .ac-avatar")?.getAttribute("data-accessory")).toBe("headset");
+  });
+
   test("a new address: its name, then a password; signing up accepts and opens the workspace", async () => {
     const { auth, calls } = createFakeAuth();
     // Opened from its email: the link carries the proof only the message has (ADR 0090).

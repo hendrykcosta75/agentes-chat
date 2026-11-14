@@ -1,52 +1,54 @@
-import type { Agent, BatchInviteResult, Channel, OrgRole } from "@agenteschat/client";
+import type { Agent, BatchInviteResult, Channel, InviteBatch, InviteLinkMade } from "@agenteschat/client";
 import {
-  channelMembersQuery,
+  ApiError,
+  keys,
   useAllInvitations,
   useApi,
   useAuthConfig,
   useChannels,
-  useInviteMany,
-  useJoinRequests,
-  useRoles,
   useWorkspaceLimits,
 } from "@agenteschat/client";
-import { modeOf } from "@agenteschat/client/lib/audience";
-import { capitalize, joinNames, namesText } from "@agenteschat/client/lib/format";
-import { useHeldWhile } from "@agenteschat/client/lib/hold";
+import { errorText, noAnswer } from "@agenteschat/client/lib/errors";
+import { formatShortDate } from "@agenteschat/client/lib/format";
+import {
+  INVITE_LINK_MAX_USES,
+  INVITE_LINK_TTL,
+  INVITE_LINK_TTLS,
+  type LinkChoices,
+  plainLink,
+  sameChoices,
+} from "@agenteschat/client/lib/invite-start";
 import { INVITE_NOTE_MAX, sendsEmail } from "@agenteschat/client/lib/join-requests";
 import { membersFull } from "@agenteschat/client/lib/limits";
 import { can } from "@agenteschat/client/lib/permissions";
-import { personalHelperRole } from "@agenteschat/client/lib/personal-view";
-import { isRightHand } from "@agenteschat/client/lib/right-hand";
-import { everyoneOf, isEveryone, roleSummary, sortRoles } from "@agenteschat/client/lib/roles";
 import { playSound } from "@agenteschat/client/lib/sounds";
-import { addressesIn, isEmail } from "@agenteschat/client/lib/text";
+import { isEmail } from "@agenteschat/client/lib/text";
 import { isPersonal, modeKey } from "@agenteschat/client/lib/workspace-mode";
 import {
   Avatar,
-  AvatarStack,
   Button,
-  Checkbox,
+  ChipField,
+  type ChipFieldToken,
   Dialog,
   DialogBody,
   DialogFooter,
+  Field,
+  FormStack,
   Icon,
+  type IconName,
+  Input,
   Locked,
-  LogoMark,
-  OptionCard,
   overLimit,
-  pixelConfetti,
-  RoleMark,
+  Segmented,
+  Select,
   Textarea,
 } from "@agenteschat/ui";
-import { useQueries } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { type UseMutationResult, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  type CSSProperties,
   createContext,
-  Fragment,
+  type KeyboardEvent,
   type ReactNode,
-  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -54,9 +56,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { OnlyYouNote } from "@/components/AgentAudience";
-import { AgentAvatar } from "@/components/AgentAvatar";
 import { usePlanHold } from "@/components/ai/ConnectAiSteps";
 import { BillingLinkButton } from "@/components/BillingLinkButton";
 import { MembersFull } from "@/components/Limits";
@@ -65,30 +66,42 @@ import { InviteModeQuestion } from "@/components/WorkspaceModeDialog";
 import { useDirectory } from "@/hooks/useDirectory";
 import { useEdited } from "@/hooks/useEdited";
 import { useTextLimit } from "@/hooks/useTextLimit";
-import { TYPED_VALUES } from "@/i18n";
-import { lookOf } from "@/lib/look";
 import { useToast } from "@/lib/toast";
-import { AddressFace, type ChipAddress, ChipNote, ChipRole, chipsFrom, EmailChips } from "./EmailChips";
-import { InviteLinkPanel } from "./InviteLinkPanel";
-import "@/components/auth.css";
+import { useCopied } from "./copied";
+import { type ChipAddress, chipsFrom } from "./EmailChips";
+import {
+  AgentsField,
+  agentsToSend,
+  ChannelsField,
+  channelsToSend,
+  FieldLine,
+  type RefusedAgent,
+  type RefusedChannel,
+  RoleField,
+  rolesToSend,
+  useInviteChoices,
+} from "./InviteFields";
 import "./invite.css";
 
 /**
- * One dialog invites (ADR 0090 §5), from Members, the workspace menu, ⌘K and a channel's "Adicionar pessoa ou
- * agente", a step at a time: who (the addresses), their role, the channels they start in, a note with the email as it
- * arrives; then what became of each address. The workspace's first agent asks each step, as on the invitation page.
- * The link is a screen of its own, for whoever should ask instead, and the only one on a server that sends no email.
+ * One screen invites (ADR 0090 §5 as revised by ADR 0184), from Members, Convites, the workspace menu, ⌘K, a channel's
+ * "Adicionar pessoa ou agente", a cargo's "Convidar com este cargo" and the right hand's card: E-mail or Link on top,
+ * then Para (e-mail only), Cargo, Canais and Agentes, each a field with its label and ⓘ on top. A link carries the same
+ * choices, plus how long it works and how many people it takes; it still only asks to join.
  */
 
 /**
  * What the dialog opens with: addresses already in it, a channel already chosen (inviting from a channel), a cargo
- * with its channels (a cargo's "Convidar com este cargo").
+ * with its channels and agents (a cargo's "Convidar com este cargo", or "Convidar mais pessoas" after a send).
  */
 export interface InviteRequest {
   emails?: string[];
   channelId?: string;
-  roleId?: string;
+  roleIds?: string[];
   channelIds?: string[];
+  agentIds?: string[];
+  /** The lists are the whole choice (the last send's): a cargo's own channel or agent left out stays out. */
+  exact?: boolean;
 }
 
 const InviteContext = createContext<{
@@ -150,629 +163,175 @@ export function InviteDialogProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** The steps an invitation by email goes through, in order. */
-const STEPS = ["who", "role", "where", "note"] as const;
-type Step = (typeof STEPS)[number];
-/** A step, the workspace's link, or what became of each address. */
-type Screen = Step | "link" | "sent";
+/** Why the last send didn't go: no answer, or a channel, an agent or a cargo the sender may no longer give. */
+type Failure =
+  | { kind: "offline" }
+  | { kind: "channel"; channel: RefusedChannel }
+  | { kind: "agent"; agent: RefusedAgent }
+  | { kind: "role" };
 
-/** The role picker's value for no role: a member. */
-const MEMBER = "member";
-
-/** How many agents' faces a channel's row shows at its end. */
-const CHANNEL_FACES = 4;
-
-/** When the host answers on the last screen, as its first rows come in (the rows' timing is in invite.css). */
-const SENT_HOST_MS = 120;
-
-/** What became of an address: the server's answer, or why it was never sent. */
-interface Outcome {
-  email: string;
-  status: BatchInviteResult["status"];
-  roleId: string;
+/** The server's refusal of a send, in the dialog's terms (`invitation.channel`, `invitation.agent`, a cargo's). */
+function failureOf(error: unknown): Failure | null {
+  if (noAnswer(error)) return { kind: "offline" };
+  if (!(error instanceof ApiError)) return null;
+  const p = error.params ?? {};
+  const name = typeof p.name === "string" ? p.name : null;
+  if (error.code === "invitation.channel" && typeof p.channelId === "string") {
+    const why = p.why === "archived" || p.why === "left" ? p.why : "gone";
+    return { kind: "channel", channel: { id: p.channelId, name, why } };
+  }
+  if (error.code === "invitation.agent" && typeof p.agentId === "string")
+    return { kind: "agent", agent: { id: p.agentId, name, why: p.why === "locked" ? "locked" : "gone" } };
+  if (error.code === "role.unknown" || error.code === "role.above_you" || error.code === "role.grant_forbidden")
+    return { kind: "role" };
+  return null;
 }
 
-/** "Julia" from julia.martins@acme.com: the address's first word, as the host calls each person. */
-const nameOf = (email: string, locale: string) => capitalize(email.split("@")[0]?.split(/[._-]/)[0] || email, locale);
-
-/** The workspace's first agent (the oldest): the one its invitation page receives people with. */
-const hostOf = (agents: readonly Agent[]) =>
-  [...agents].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0] ?? null;
-
 function InviteDialog({ request, open, onClose }: { request: InviteRequest; open: boolean; onClose: () => void }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { org, me } = useOrg();
-  // A personal workspace's view (ADR 0159): its own words, two plain roles, and no question with only one answer.
-  const personal = isPersonal(org);
   const toast = useToast();
   const api = useApi();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
   const dir = useDirectory(org.id);
+  const again = useInviteDialog();
   const held = usePlanHold() !== null;
   // A server that sends no email invites through the link only.
   const byLink = !sendsEmail(useAuthConfig().data);
+  const [how, setHow] = useState<"mail" | "link">("mail");
+  const mode = byLink ? "link" : how;
   const invitations = useAllInvitations(org.id);
-  const orgRoles = useRoles(org.id).data?.roles ?? [];
   const channels = useChannels(org.id).data ?? [];
   const full = membersFull(useWorkspaceLimits(org.id).data) !== null;
-  const inviteMany = useInviteMany(org.id);
-  const [at, setAt] = useState<Screen>("who");
+  const choices = useInviteChoices(
+    {
+      roleIds: request.roleIds ?? [],
+      channelIds: [...new Set([...(request.channelId ? [request.channelId] : []), ...(request.channelIds ?? [])])],
+      agentIds: request.agentIds ?? [],
+    },
+    { exact: request.exact },
+  );
   const [chips, setChips] = useState<ChipAddress[]>(() => chipsFrom((request.emails ?? []).join(", "), []));
   const [draft, setDraft] = useState("");
-  const [role, setRole] = useState(request.roleId ?? MEMBER);
-  const [each, setEach] = useState(false);
-  const [roles, setRoles] = useState<Record<string, string>>({});
-  const [chosen, setChosen] = useState<Set<string>>(
-    () => new Set([...(request.channelId ? [request.channelId] : []), ...(request.channelIds ?? [])]),
-  );
-  const [note, setNote] = useState("");
+  // Null: no note yet, only its button.
+  const [note, setNote] = useState<string | null>(null);
   const noteLimit = useTextLimit(INVITE_NOTE_MAX);
-  const noteTooLong = overLimit(note, noteLimit);
-  const [outcome, setOutcome] = useState<Outcome[]>([]);
-  // Each send's own number: the last screen celebrates once per send, never on a re-render.
-  const [sends, setSends] = useState(0);
-  const screen: Screen = byLink ? "link" : at;
-  // Once sent, nothing is left to lose.
-  const unsaved = useEdited(open, [chips, draft, note]) && screen !== "sent";
-  const emailsField = useRef<HTMLInputElement>(null);
+  const noteTooLong = overLimit(note ?? "", noteLimit);
+  const [failure, setFailure] = useState<Failure | null>(null);
+  const emails = useRef<HTMLInputElement>(null);
   const noteField = useRef<HTMLTextAreaElement>(null);
-  const primary = useRef<HTMLButtonElement>(null);
-  const hostFace = useRef<HTMLSpanElement>(null);
-  const first = (email: string) => nameOf(email, i18n.language);
-  const host = useMemo(() => hostOf(dir.agents), [dir.agents]);
+  const send = useMutation({
+    mutationFn: (input: InviteBatch) => api.orgs.inviteMany(org.id, input),
+    meta: { silent: true },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.invitations(org.id) }),
+  });
+  // Link's: the workspace's link renewed as it opens, or a link of its own. Here, so it locks the whole dialog.
+  const make = useMutation({
+    mutationFn: (c: LinkChoices) => api.invites.createLink(org.id, c),
+    meta: { silent: true },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.inviteLinks(org.id) }),
+  });
+  const pending = send.isPending || make.isPending;
+  const unsaved = useEdited(open, [chips, draft, note]) || pending;
 
-  // Who is in already, and who has an invitation waiting: said on their chip and left out of the send.
-  const members = useHeldWhile(new Set(dir.members.map((m) => m.email.toLowerCase())), inviteMany.isPending);
-  const waiting = useHeldWhile(
-    new Set((invitations.data ?? []).filter((i) => i.status === "pending").map((i) => i.email.toLowerCase())),
-    inviteMany.isPending,
+  // Who is in already, and who has an invitation waiting: said on their token and left out of the send.
+  const members = new Set(dir.members.map((m) => m.email.toLowerCase()));
+  const waiting = new Set(
+    (invitations.data ?? []).filter((i) => i.status === "pending").map((i) => i.email.toLowerCase()),
   );
   const stateOf = (c: ChipAddress) =>
     !c.valid ? "bad" : members.has(c.email) ? "member" : waiting.has(c.email) ? "invited" : "ok";
-  const ready = chips.filter((c) => stateOf(c) === "ok");
-  const bad = chips.some((c) => !c.valid);
-  const leftOut = chips.some((c) => stateOf(c) === "member" || stateOf(c) === "invited");
-  // An address typed and not a chip yet counts: leaving the field for Continuar makes it one.
-  const typed = addressesIn(draft).some((a) => stateOf(a) === "ok" && !chips.some((c) => c.email === a.email));
+  // What's typed and not a token yet counts, as leaving the field would make it one.
+  const all = draft.trim() ? [...chips, ...chipsFrom(draft, chips)] : chips;
+  const ready = all.filter((c) => stateOf(c) === "ok");
+  const bad = all.some((c) => !c.valid);
+  const leftOut = all.some((c) => stateOf(c) === "member" || stateOf(c) === "invited");
 
-  // The channels they can be added to: the public ones and the private ones I'm in, #general first (always on).
-  const general = channels.find((c) => c.name === "general");
-  const offered: Channel[] = [
-    ...(general ? [general] : []),
-    ...channels.filter((c) => c.id !== general?.id && (c.visibility === "public" || c.isMember)),
-  ];
-  const extra = offered.filter((c) => c.id !== general?.id && chosen.has(c.id));
-  const startsIn = [...(general ? [general] : []), ...extra];
-  const fromChannel = offered.find((c) => c.id === request.channelId && c.id !== general?.id);
-  // Who is in each channel, read when its step shows: how many people, and the agents by face and name.
-  const rosters = useQueries({
-    queries: offered.map((c) => ({ ...channelMembersQuery(api, org.id, c.id), enabled: open && screen === "where" })),
-  });
-  const joinRequests = useJoinRequests(org.id, open && screen === "link");
-
-  const everyone = everyoneOf(orgRoles);
-  // Personal: uses the agents (a member) or helps run it (the workspace's Admin, when this person may give it), then
-  // any other role this person may give, by its own name (a new workspace has none); the roles themselves, and what
-  // each one may do, stay as they are (Roles and permissions, under Advanced).
-  const helper = personal ? personalHelperRole(orgRoles) : null;
-  const plain = (value: string, r: OrgRole | null, words: "uses" | "helps") => ({
-    value,
-    label: t(`members.dialog.role.${words}`),
-    description: t(`members.dialog.role.${words}Text`),
-    role: r,
-  });
-  const givable = sortRoles(orgRoles.filter((r) => !isEveryone(r) && r.givable && r.id !== helper?.id)).map((r) => ({
-    value: r.id,
-    label: r.name,
-    description: roleSummary(t, i18n.language, r, everyone),
-    role: r,
-  }));
-  const choices: { value: string; label: string; description: string; role: OrgRole | null }[] = personal
-    ? [plain(MEMBER, null, "uses"), ...(helper ? [plain(helper.id, helper, "helps")] : []), ...givable]
-    : [{ value: MEMBER, label: t("roles.member"), description: t("members.chips.memberHint"), role: null }, ...givable];
-  const roleOptions = choices.map(({ value, label, description }) => ({ value, label, description }));
-  // A role no longer there (or no longer this person's to give) reads as Membro.
-  const known = (id: string | undefined) => (id && choices.some((c) => c.value === id) ? id : MEMBER);
-  const perPerson = each && ready.length > 1;
-  const roleFor = (email: string) => known(perPerson ? (roles[email] ?? role) : role);
-  const roleName = (id: string) => choices.find((c) => c.value === id)?.label ?? t("roles.member");
-  /** Why an address didn't go, in the workspace's words. */
-  const skipped = (status: Exclude<Outcome["status"], "invited">) =>
-    status === "already_member"
-      ? t(modeKey(org, "members.dialog.result.already_member"), { org: org.name })
-      : t(`members.dialog.result.${status}`, { org: org.name });
-  // A personal workspace skips a step with one answer: one role to give, or #general alone to start in.
-  const steps: readonly Step[] = personal
-    ? STEPS.filter((s) => (s !== "role" || choices.length > 1) && (s !== "where" || offered.length > 1))
-    : STEPS;
-  const index = steps.indexOf(screen as Step);
-  // Which agents answer whoever joins a personal workspace: said on the role step, or on the first one when there is
-  // no role to choose.
-  const reach = personal && <InviteReach onOpen={onClose} />;
-
-  const next = () => {
-    if (screen === "who") {
-      // What's typed and not a chip yet goes in first, as leaving the field would have put it.
-      const list = draft.trim() ? [...chips, ...chipsFrom(draft, chips)] : chips;
-      if (list !== chips) {
-        setChips(list);
-        setDraft("");
-      }
-      if (full || !list.some((c) => stateOf(c) === "ok")) return;
-    }
-    const following = steps[index + 1];
-    if (following) setAt(following);
-  };
-  const back = () => {
-    const before = steps[index - 1];
-    if (before) setAt(before);
-  };
-  const perPersonOn = () => {
-    setRoles((prev) => {
-      const out = { ...prev };
-      for (const c of ready) out[c.email] ??= role;
-      return out;
+  // An agent's page opens over this dialog's place: the dialog closes for it.
+  const goTo = (a: Agent) => {
+    onClose();
+    void navigate({
+      to: "/org/$orgId/agents/$agentId",
+      params: { orgId: org.id, agentId: a.id },
+      search: { tab: "settings", sec: "audience" },
     });
-    setEach(true);
-  };
-  // Inviting more starts over, in the same channels.
-  const again = () => {
-    setChips([]);
-    setDraft("");
-    setRole(MEMBER);
-    setEach(false);
-    setRoles({});
-    setNote("");
-    setOutcome([]);
-    setAt("who");
   };
 
-  const send = async () => {
-    if (ready.length === 0 || full || noteTooLong || inviteMany.isPending) return;
+  const sendNow = async () => {
+    if (all !== chips) {
+      setChips(all);
+      setDraft("");
+    }
+    if (ready.length === 0 || full || noteTooLong || send.isPending) return;
+    setFailure(null);
+    const sending = {
+      roleIds: rolesToSend(choices),
+      channelIds: channelsToSend(choices, channels),
+      agentIds: agentsToSend(choices),
+    };
     let results: BatchInviteResult[];
     try {
-      results = await inviteMany.mutateAsync({
-        invites: ready.map((c) => {
-          const id = roleFor(c.email);
-          return { email: c.email, roleIds: id === MEMBER ? [] : [id] };
-        }),
-        channelIds: extra.map((c) => c.id),
-        ...(note.trim() ? { note: note.trim() } : {}),
+      results = await send.mutateAsync({
+        emails: ready.map((c) => c.email),
+        ...sending,
+        ...(note?.trim() ? { note: note.trim() } : {}),
       });
-    } catch {
-      // Said by the failed write's toast; everything stays to send again.
+    } catch (e) {
+      const said = failureOf(e);
+      if (said) setFailure(said);
+      else toast.show(errorText(t, e), "error");
       return;
     }
-    // An address the server reads as none goes back to the first step, marked, to fix or take out; the rest went.
+    const sent = results.filter((r) => r.status === "invited");
+    // An address the server reads as none stays, marked, to fix or take out; the rest went.
     const fix = new Set(results.filter((r) => r.status === "invalid_email").map((r) => r.email));
+    const words =
+      sent.length === 1
+        ? t("members.dialog.sent", { email: sent[0]?.email })
+        : t("members.dialog.sentMany", { count: sent.length });
+    if (sent.length > 0) {
+      playSound("approved");
+      toast.show(words, "info", {
+        label: t("members.dialog.again"),
+        run: () => again?.open({ ...sending, exact: true }),
+      });
+    }
     if (fix.size > 0) {
-      const sent = results.filter((r) => r.status === "invited");
-      if (sent.length === 1) toast.show(t("members.dialog.sent", { email: sent[0]?.email }));
-      else if (sent.length > 1) toast.show(t("members.dialog.sentMany", { count: sent.length }));
       for (const email of fix) toast.show(t("members.batch.invalid_email", { email }), "error");
       setChips((list) =>
         list.filter((c) => !c.valid || fix.has(c.email)).map((c) => (fix.has(c.email) ? { ...c, valid: false } : c)),
       );
-      setAt("who");
       return;
     }
-    // Every address, each with the server's answer, or why it never went (in already, invited already, no address).
-    const said = new Map(results.map((r) => [r.email, r.status]));
-    const never = { bad: "invalid_email", member: "already_member", invited: "already_invited" } as const;
-    setOutcome(
-      chips.flatMap((c) => {
-        const state = stateOf(c);
-        const status = said.get(c.email) ?? (state === "ok" ? undefined : never[state]);
-        return status ? [{ email: c.email, status, roleId: roleFor(c.email) }] : [];
-      }),
-    );
-    setSends((n) => n + 1);
-    setAt("sent");
+    onClose();
   };
 
-  // A new step starts where it's answered: the field on the first and the note's; elsewhere the button that goes on,
-  // when the control that had the focus went away with the step before.
-  const shown = useRef(screen);
-  useEffect(() => {
-    if (shown.current === screen) return;
-    shown.current = screen;
-    if (screen === "who") emailsField.current?.focus();
-    else if (screen === "note") noteField.current?.focus();
-    else {
-      const box = primary.current?.closest('[role="dialog"]');
-      const now = document.activeElement;
-      if (!now || now === document.body || now === box || !box?.contains(now)) primary.current?.focus();
-    }
-  }, [screen]);
+  // ⌘↵ (Ctrl+Enter) sends from anywhere in the form.
+  const onKeys = (e: KeyboardEvent) => {
+    if (mode !== "mail" || e.key !== "Enter" || !(e.metaKey || e.ctrlKey)) return;
+    e.preventDefault();
+    void sendNow();
+  };
 
-  // The last screen, once per send that sent someone: the host jumps in a burst of pixels and the "approved" sound
-  // plays (the person's sound choice applies). The rows, the bubble, the jump and the checks move in CSS; with reduced
-  // motion nothing moves and no confetti falls (`pixelConfetti` draws nothing), and the sound still plays.
-  const celebrated = useRef(0);
-  useEffect(() => {
-    if (screen !== "sent" || sends === 0 || celebrated.current === sends) return;
-    if (!outcome.some((o) => o.status === "invited")) return;
-    const timer = setTimeout(() => {
-      celebrated.current = sends;
-      playSound("approved");
-      const face = hostFace.current?.getBoundingClientRect();
-      if (face) pixelConfetti({ x: face.left + face.width / 2, y: face.top + face.height / 2 });
-    }, SENT_HOST_MS);
-    return () => clearTimeout(timer);
-  }, [screen, sends, outcome]);
-
-  const sentOk = outcome.filter((o) => o.status === "invited");
-  // Someone was sent: the host is happy, and jumps.
-  const party = screen === "sent" && sentOk.length > 0;
-  const channelsSaid = joinNames(
-    startsIn.map((c) => `#${c.name}`),
-    t,
-  );
-  // The host's question on each screen, its answer on the last one.
-  const askOf = (): { title: string; lead: string } => {
-    const one = ready.length === 1 ? first(ready[0]?.email ?? "") : null;
-    if (screen === "who") return { title: t("members.dialog.who.title"), lead: t("members.dialog.who.lead") };
-    if (screen === "role")
-      return {
-        title: one
-          ? t(modeKey(org, "members.dialog.role.titleOne"), { name: one })
-          : t(modeKey(org, "members.dialog.role.titleMany")),
-        lead: t(modeKey(org, "members.dialog.role.lead")),
-      };
-    if (screen === "where")
-      return {
-        title: one
-          ? t(modeKey(org, "members.dialog.where.titleOne"), { name: one })
-          : t(modeKey(org, "members.dialog.where.titleMany")),
-        lead: t("members.dialog.where.lead", { channel: general?.name ?? "general" }),
-      };
-    if (screen === "note")
-      return { title: t("members.dialog.noteStep.title"), lead: t("members.dialog.noteStep.lead") };
-    if (screen === "link")
-      return {
-        title: t(modeKey(org, "members.dialog.linkStep.title"), { org: org.name }),
-        lead: t("members.dialog.linkStep.lead"),
-      };
-    if (sentOk.length === 0) return { title: t("members.dialog.done.none"), lead: t("members.dialog.done.noneLead") };
-    const names = namesText(
-      t,
-      sentOk.map((o) => first(o.email)),
-      3,
-    );
+  const tokens: ChipFieldToken[] = chips.map((c) => {
+    const state = stateOf(c);
     return {
-      title: t("members.dialog.done.title", { names }),
-      lead:
-        sentOk.length === 1
-          ? t("members.dialog.done.leadOne", { name: first(sentOk[0]?.email ?? ""), channels: channelsSaid })
-          : t("members.dialog.done.leadMany", { channels: channelsSaid }),
+      key: c.email,
+      label: c.email,
+      leading: <Avatar name={c.email} initials={c.email.charAt(0).toUpperCase()} size="xs" />,
+      removeLabel: t("common.removeName", { name: c.email }),
+      state: state === "bad" ? "invalid" : state === "ok" ? undefined : "soft",
+      note:
+        state === "bad"
+          ? t("members.chips.check")
+          : state === "member"
+            ? t(modeKey(org, "members.chips.member"), { org: org.name })
+            : state === "invited"
+              ? t("members.chips.invited")
+              : undefined,
     };
-  };
-  const ask = askOf();
-
-  const toggleChannel = (id: string, on: boolean) =>
-    setChosen((prev) => {
-      const out = new Set(prev);
-      if (on) out.add(id);
-      else out.delete(id);
-      return out;
-    });
-
-  let answer: ReactNode;
-  if (screen === "who")
-    answer = (
-      <>
-        <MembersFull />
-        <OnlyYouNote orgId={org.id} viewerId={me.user.id} />
-        {!steps.includes("role") && reach}
-        <label className="ac-visually-hidden" htmlFor="invite-dialog-emails">
-          {t("members.dialog.emails")}
-        </label>
-        <EmailChips
-          id="invite-dialog-emails"
-          inputRef={emailsField}
-          chips={chips}
-          draft={draft}
-          onDraftChange={setDraft}
-          onAdd={(text) => setChips((list) => [...list, ...chipsFrom(text, list)])}
-          onRemove={(chip) => setChips((list) => list.filter((c) => c.email !== chip.email))}
-          placeholder={t("members.emailsPlaceholder")}
-          morePlaceholder={t("members.dialog.moreEmails")}
-          describedBy="invite-dialog-help"
-          onEnterEmpty={next}
-          soft={(chip) => stateOf(chip) !== "ok"}
-          aside={(chip) => {
-            const state = stateOf(chip);
-            if (state === "member")
-              return <ChipNote>{t(modeKey(org, "members.chips.member"), { org: org.name })}</ChipNote>;
-            if (state === "invited") return <ChipNote>{t("members.chips.invited")}</ChipNote>;
-            return null;
-          }}
-        />
-        <p id="invite-dialog-help" className="invite-help" data-bad={bad || undefined}>
-          {bad
-            ? t("members.dialog.checkMarked")
-            : leftOut
-              ? t("members.dialog.leftOut")
-              : t("members.dialog.pasteHelp")}
-        </p>
-        <div className="invite-orlink ac-mediarow">
-          <span className="ac-mediarow__face">
-            <span className="invite-tile" aria-hidden="true">
-              <Icon name="link" size={18} />
-            </span>
-          </span>
-          <span className="ac-mediarow__head">
-            <b>{t("members.dialog.orLink.title")}</b>
-          </span>
-          <span className="ac-mediarow__end ac-mediarow__end--wrap">
-            <Button size="sm" onClick={() => setAt("link")}>
-              {t("members.dialog.orLink.open")}
-            </Button>
-          </span>
-          <span className="ac-mediarow__body invite-orlink__text">{t("members.dialog.orLink.text")}</span>
-        </div>
-      </>
-    );
-  else if (screen === "role")
-    answer = perPerson ? (
-      <>
-        <ul className="invite-people ac-list">
-          {ready.map((c) => (
-            <li key={c.email} className="invite-person">
-              <AddressFace email={c.email} />
-              <span className="invite-person__email">{c.email}</span>
-              <ChipRole
-                email={c.email}
-                value={roleFor(c.email)}
-                options={roleOptions}
-                onChange={(v) => setRoles((prev) => ({ ...prev, [c.email]: v }))}
-              />
-            </li>
-          ))}
-        </ul>
-        <button type="button" className="invite-each" aria-expanded="true" onClick={() => setEach(false)}>
-          <Icon name="chevronRight" size={16} />
-          {t(modeKey(org, "members.dialog.role.same"))}
-        </button>
-        {reach}
-      </>
-    ) : (
-      <>
-        {/* biome-ignore lint/a11y/useSemanticElements: option cards named by the host's question, not a fieldset */}
-        <div className="invite-roles" role="group" aria-labelledby="invite-dialog-ask">
-          {choices.map((c) => (
-            <OptionCard
-              key={c.value}
-              pressed={known(role) === c.value}
-              onClick={() => setRole(c.value)}
-              className="ac-mediarow"
-            >
-              <span className="ac-mediarow__face">
-                <RoleSeal role={c.role ?? everyone ?? null} />
-              </span>
-              <span className="ac-mediarow__head">
-                <span className="ac-option__title">{c.label}</span>
-              </span>
-              <span className="ac-mediarow__body">
-                <span className="ac-option__desc">{c.description}</span>
-              </span>
-            </OptionCard>
-          ))}
-        </div>
-        {ready.length > 1 && (
-          <button type="button" className="invite-each" aria-expanded="false" onClick={perPersonOn}>
-            <Icon name="chevronRight" size={16} />
-            {t(modeKey(org, "members.dialog.role.each"))}
-          </button>
-        )}
-        {reach}
-      </>
-    );
-  else if (screen === "where")
-    answer = (
-      <>
-        {/* biome-ignore lint/a11y/useSemanticElements: a list of checkboxes, not a fieldset */}
-        <div className="invite-chans ac-list" role="group" aria-label={t(modeKey(org, "members.dialog.where.label"))}>
-          {offered.map((c, i) => {
-            const always = c.id === general?.id;
-            const roster = rosters[i]?.data;
-            const agents = (roster ?? [])
-              .filter((m) => m.type === "agent")
-              .flatMap((m) => dir.agentById.get(m.id) ?? []);
-            const people = (roster ?? []).filter((m) => m.type === "person").length;
-            const named = agents.length
-              ? namesText(
-                  t,
-                  agents.map((a) => a.name),
-                  2,
-                )
-              : "";
-            const sub = always
-              ? t("members.dialog.where.everyone")
-              : c.visibility === "private"
-                ? t("members.dialog.where.private")
-                : roster
-                  ? [t("members.dialog.where.people", { count: people }), named].filter(Boolean).join(" · ")
-                  : "";
-            const id = `invite-chan-${c.id}`;
-            return (
-              <label key={c.id} htmlFor={id} className="invite-chan" data-fixed={always || undefined}>
-                <Checkbox
-                  id={id}
-                  checked={always || chosen.has(c.id)}
-                  disabled={always}
-                  aria-label={`#${c.name}`}
-                  aria-describedby={sub ? `${id}-sub` : undefined}
-                  onCheckedChange={(on) => toggleChannel(c.id, on)}
-                />
-                <span className="invite-chan__text">
-                  <span className="invite-chan__name">
-                    {c.visibility === "private" && <Icon name="lock" size={14} />}#{c.name}
-                  </span>
-                  {sub && (
-                    <span className="invite-chan__sub" id={`${id}-sub`}>
-                      {sub}
-                    </span>
-                  )}
-                </span>
-                {agents.length > 0 && (
-                  <span className="invite-chan__faces" aria-hidden="true">
-                    {agents.slice(0, CHANNEL_FACES).map((a) => (
-                      <AgentAvatar key={a.id} name={a.name} appearance={lookOf(a)} size="xs" />
-                    ))}
-                  </span>
-                )}
-              </label>
-            );
-          })}
-        </div>
-        {fromChannel && (
-          <p className="invite-help invite-help--note">
-            {t("members.dialog.where.fromChannel", { channel: fromChannel.name })}
-          </p>
-        )}
-      </>
-    );
-  else if (screen === "note")
-    answer = (
-      <>
-        <Textarea
-          ref={noteField}
-          className="invite-note"
-          rows={3}
-          limit={noteLimit}
-          value={note}
-          aria-label={t("members.dialog.note")}
-          placeholder={t(modeKey(org, "members.dialog.notePlaceholder"), { org: org.name })}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <MailPreview to={ready.map((c) => c.email)} names={ready.map((c) => first(c.email))} note={note} />
-      </>
-    );
-  else if (screen === "link")
-    answer = (
-      <>
-        {byLink && (
-          <>
-            <MembersFull />
-            <OnlyYouNote orgId={org.id} viewerId={me.user.id} />
-          </>
-        )}
-        <InviteLinkPanel />
-        <ol className="invite-how">
-          {(["how1", "how2", "how3"] as const).map((k, i) => (
-            <li key={k}>
-              <span className="invite-how__n" aria-hidden="true">
-                {i + 1}
-              </span>
-              {t(`members.dialog.linkStep.${k}`)}
-            </li>
-          ))}
-        </ol>
-        <LinkRequests requests={joinRequests.data ?? []} onOpen={onClose} />
-      </>
-    );
-  else {
-    // The ones that went come in first, then the rest, each after the one before (`--i`, in invite.css).
-    const order = [...sentOk, ...outcome.filter((o) => o.status !== "invited")].map((o) => o.email);
-    answer = (
-      <ul className="invite-people ac-list">
-        {outcome.map((o) => (
-          <li
-            key={o.email}
-            className="invite-person"
-            data-ok={o.status === "invited" || undefined}
-            style={{ "--i": order.indexOf(o.email) } as CSSProperties}
-          >
-            <AddressFace email={o.email} />
-            <span className="invite-person__email">
-              {o.email}
-              {o.status === "invited" && <span className="invite-person__role"> · {roleName(o.roleId)}</span>}
-            </span>
-            {o.status === "invited" ? (
-              <span className="invite-state">
-                <Icon name="check" size={14} />
-                {t("members.dialog.result.invited")}
-              </span>
-            ) : (
-              <span className="invite-state" data-skip="true">
-                {skipped(o.status)}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  let footer: ReactNode;
-  if (screen === "sent")
-    footer = (
-      <>
-        <Button key="lead" variant="ghost" icon="plus" onClick={again}>
-          {t("members.dialog.again")}
-        </Button>
-        <span className="invite-foot__gap" />
-        <Button key="primary" ref={primary} variant="primary" onClick={onClose}>
-          {t("members.dialog.finish")}
-        </Button>
-      </>
-    );
-  else if (screen === "link")
-    footer = (
-      <>
-        {!byLink && (
-          <Button key="lead" variant="ghost" icon="chevronLeft" onClick={() => setAt("who")}>
-            {t("members.dialog.linkStep.byEmail")}
-          </Button>
-        )}
-        <span className="invite-foot__gap" />
-        <Button key="primary" ref={primary} onClick={onClose}>
-          {t("common.close")}
-        </Button>
-      </>
-    );
-  else
-    footer = (
-      <>
-        {index > 0 ? (
-          <Button key="lead" variant="ghost" icon="chevronLeft" onClick={back}>
-            {t("common.back")}
-          </Button>
-        ) : (
-          <Button key="lead" variant="ghost" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-        )}
-        <span className="invite-foot__gap" />
-        {screen === "note" ? (
-          <Button
-            key="primary"
-            ref={primary}
-            variant="primary"
-            icon="send"
-            disabled={ready.length === 0 || full || noteTooLong}
-            loading={inviteMany.isPending}
-            onClick={() => void send()}
-          >
-            {t("members.dialog.send", { count: ready.length })}
-          </Button>
-        ) : (
-          <Button
-            key="primary"
-            ref={primary}
-            variant="primary"
-            kbd={["↵"]}
-            disabled={screen === "who" && (full || (ready.length === 0 && !typed))}
-            onClick={next}
-          >
-            {/* How many go: said where they are chosen, on the first step. */}
-            {screen === "who" && ready.length > 1
-              ? t("members.dialog.continueWith", { count: ready.length })
-              : t("common.continue")}
-          </Button>
-        )}
-      </>
-    );
+  });
 
   if (held) {
     return (
@@ -797,223 +356,323 @@ function InviteDialog({ request, open, onClose }: { request: InviteRequest; open
       </Dialog>
     );
   }
+
+  const toLabel = t("invites.to");
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && !pending && onClose()}
       title={t(modeKey(org, "members.dialog.title"), { org: org.name })}
-      subtitle={
-        index >= 0
-          ? t("members.dialog.stepOf", {
-              n: index + 1,
-              total: steps.length,
-              step: t(`members.dialog.steps.${screen as Step}`),
-            })
-          : undefined
-      }
       closeLabel={t("common.close")}
       unsaved={unsaved}
       width={600}
-      initialFocus={screen === "who" ? emailsField : undefined}
+      initialFocus={mode === "mail" ? emails : undefined}
     >
-      {index >= 0 && (
-        <div className="ac-steps invite-steps" aria-hidden="true">
-          {steps.map((s, i) => (
-            <span key={s} className="ac-steps__bar" data-done={i <= index} />
-          ))}
-        </div>
-      )}
-      <Locked when={inviteMany.isPending}>
-        <DialogBody className="invite-dialog">
-          <div
-            className="invite-screen"
-            key={screen}
-            data-sent={screen === "sent" || undefined}
-            data-party={party || undefined}
-          >
-            <HostAsk host={host} title={ask.title} lead={ask.lead} happy={party} face={hostFace} />
-            <div className="auth__step invite-answer">{answer}</div>
-          </div>
+      <Locked when={pending}>
+        <DialogBody className="invite-dialog" onKeyDown={onKeys}>
+          <FormStack>
+            <MembersFull />
+            <OnlyYouNote orgId={org.id} viewerId={me.user.id} />
+            {!byLink && (
+              <Segmented
+                block
+                label={t("invites.how")}
+                value={mode}
+                onValueChange={setHow}
+                options={[
+                  { value: "mail", label: t("invites.byEmail"), mark: <Icon name="mail" size={16} /> },
+                  { value: "link", label: t("invites.byLink"), mark: <Icon name="link" size={16} /> },
+                ]}
+              />
+            )}
+            {mode === "mail" ? (
+              <>
+                <Field
+                  label={toLabel}
+                  id="invite-to"
+                  hint={{ name: t("common.about", { label: toLabel }), text: t("members.dialog.pasteHelp") }}
+                >
+                  <ChipField
+                    tokens={tokens}
+                    inputRef={emails}
+                    inputMode="email"
+                    draft={draft}
+                    onDraftChange={setDraft}
+                    onCommit={(text) => setChips((list) => [...list, ...chipsFrom(text, list)])}
+                    onRemove={(email) => setChips((list) => list.filter((c) => c.email !== email))}
+                    placeholder={t("members.emailsPlaceholder")}
+                    morePlaceholder={t("members.dialog.moreEmails")}
+                    aria-describedby={bad || leftOut ? "invite-to-line" : undefined}
+                  />
+                  {bad ? (
+                    <FieldLine id="invite-to-line" tone="danger">
+                      {t("members.dialog.checkMarked")}
+                    </FieldLine>
+                  ) : (
+                    leftOut && <FieldLine id="invite-to-line">{t("members.dialog.leftOut")}</FieldLine>
+                  )}
+                </Field>
+                <RoleField choices={choices} id="invite-role" />
+                <ChannelsField
+                  choices={choices}
+                  id="invite-channels"
+                  fromChannelId={request.channelId}
+                  refused={failure?.kind === "channel" ? failure.channel : null}
+                />
+                <AgentsField
+                  choices={choices}
+                  id="invite-agents"
+                  live={open}
+                  refused={failure?.kind === "agent" ? failure.agent : null}
+                  onGo={goTo}
+                />
+                {failure?.kind === "role" && (
+                  <FieldLine tone="danger">
+                    {choices.roleIds.length === 1
+                      ? t("invites.refused.role", {
+                          role: choices.roles.find((r) => r.id === choices.roleIds[0])?.name ?? "",
+                        })
+                      : t("invites.refused.roleMany")}
+                  </FieldLine>
+                )}
+                {note === null ? (
+                  <div className="invite-extra">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="plus"
+                      onClick={() => {
+                        setNote("");
+                        requestAnimationFrame(() => noteField.current?.focus());
+                      }}
+                    >
+                      {t("members.dialog.note")}
+                    </Button>
+                  </div>
+                ) : (
+                  <Field label={t("members.dialog.note")} id="invite-note">
+                    <Textarea
+                      ref={noteField}
+                      autoGrow
+                      rows={2}
+                      className="invite-note"
+                      limit={noteLimit}
+                      value={note}
+                      placeholder={t(modeKey(org, "members.dialog.notePlaceholder"), { org: org.name })}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </Field>
+                )}
+                {failure?.kind === "offline" && <FieldLine tone="danger">{t("invites.offline")}</FieldLine>}
+              </>
+            ) : (
+              <LinkForm make={make} choices={choices} fromChannelId={request.channelId} live={open} onGo={goTo} />
+            )}
+          </FormStack>
         </DialogBody>
-        <DialogFooter>{footer}</DialogFooter>
+        <DialogFooter bar>
+          {mode === "mail" ? (
+            <>
+              <Button onClick={onClose}>{t("common.cancel")}</Button>
+              <Button
+                variant="primary"
+                icon={failure?.kind === "offline" ? "refresh" : "send"}
+                disabled={ready.length === 0 || full || noteTooLong}
+                loading={send.isPending}
+                onClick={() => void sendNow()}
+              >
+                {failure?.kind === "offline"
+                  ? t("common.retry")
+                  : ready.length
+                    ? t("members.dialog.send", { count: ready.length })
+                    : t("members.invite")}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={onClose}>{t("members.dialog.finish")}</Button>
+          )}
+        </DialogFooter>
       </Locked>
     </Dialog>
   );
 }
 
+/** A made link as the field shows it, with the choices it was made from. */
+interface Made {
+  choices: LinkChoices;
+  link: InviteLinkMade;
+}
+
 /**
- * The host, the workspace's first agent as it looks there (the product's own face with none), asking in its bubble
- * as on the invitation page (`.auth__ask`, components/auth.css); happy once the invitations went.
+ * Link: the address to copy, until when it works, then the same fields as by e-mail, and Validade and Máximo de
+ * pessoas. At the defaults the field shows the workspace's link at once, renewed to 30 days as it opens here. Any other
+ * choice empties the field until "Criar link" makes a link of its own; a live link changes only from Editar. `make`:
+ * the dialog's, which locks it all while it runs.
  */
-function HostAsk({
-  host,
-  title,
-  lead,
-  happy,
-  face,
+function LinkForm({
+  make,
+  choices,
+  fromChannelId,
+  live,
+  onGo,
 }: {
-  host: Agent | null;
-  title: string;
-  lead: string;
-  happy: boolean;
-  face: RefObject<HTMLSpanElement | null>;
+  make: UseMutationResult<InviteLinkMade, Error, LinkChoices>;
+  choices: ReturnType<typeof useInviteChoices>;
+  fromChannelId?: string;
+  live: boolean;
+  onGo: (agent: Agent) => void;
 }) {
-  const expression = happy ? "happy" : undefined;
-  return (
-    <div className="auth__ask invite-host">
-      <span className="invite-host__face" ref={face}>
-        {host ? (
-          <AgentAvatar name={host.name} appearance={lookOf(host)} expression={expression} />
-        ) : (
-          <AgentAvatar name="agentes.chat" expression={expression} />
-        )}
-      </span>
-      <div className="auth__bubble" aria-live="polite">
-        <h2 className="auth__title" id="invite-dialog-ask">
-          {title}
-        </h2>
-        <p className="auth__lead">{lead}</p>
-      </div>
-    </div>
-  );
-}
-
-/** A role's mark on its card (ADR 0085): Membro takes `everyone`'s, the base every person has. */
-function RoleSeal({ role }: { role: OrgRole | null }) {
-  if (role) return <RoleMark color={role.color} icon={role.icon} size={32} />;
-  return (
-    <span className="invite-tile" aria-hidden="true">
-      <Icon name="person" size={18} />
-    </span>
-  );
-}
-
-/** How many agents the reach line names, before "N more". */
-const REACH_NAMED = 4;
-
-/**
- * Which agents will answer whoever joins a personal workspace (ADR 0159 §4): the ones every member may talk to,
- * besides the right hand, each name a way to its "Who can talk" to change it. Read only: nothing here changes an
- * agent. Nothing when none does.
- */
-function InviteReach({ onOpen }: { onOpen: () => void }) {
   const { t, i18n } = useTranslation();
   const { org } = useOrg();
-  const dir = useDirectory(org.id);
-  const open = dir.agents.filter((a) => !isRightHand(a) && modeOf(a) === "everyone");
-  if (open.length === 0) return null;
-  const named = open.slice(0, REACH_NAMED);
-  const more = open.length - named.length;
-  const words = [...named.map((a) => a.name), ...(more > 0 ? [t("notifications.namesMore", { count: more })] : [])];
-  let next = 0;
-  const names = new Intl.ListFormat(i18n.language).formatToParts(words).map((p, k) => {
-    const a = p.type === "element" ? named[next++] : undefined;
-    return a ? (
-      <Link
-        key={a.id}
-        to="/org/$orgId/agents/$agentId"
-        params={{ orgId: org.id, agentId: a.id }}
-        search={{ tab: "settings", sec: "audience" }}
-        onClick={onOpen}
-      >
-        {a.name}
-      </Link>
-    ) : (
-      // biome-ignore lint/suspicious/noArrayIndexKey: separators and "N more" have no identity of their own
-      <Fragment key={k}>{p.value}</Fragment>
+  const channels = useChannels(org.id).data ?? [];
+  const [expiresIn, setExpiresIn] = useState<LinkChoices["expiresIn"]>(INVITE_LINK_TTL);
+  const [maxUses, setMaxUses] = useState<number | null>(null);
+  const [workspace, setWorkspace] = useState<InviteLinkMade | null>(null);
+  const [made, setMade] = useState<Made | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, copy] = useCopied();
+  const now: LinkChoices = {
+    roleIds: rolesToSend(choices),
+    channelIds: channelsToSend(choices, channels),
+    agentIds: agentsToSend(choices),
+    expiresIn,
+    maxUses,
+  };
+  const plain = plainLink(now);
+  const { mutate } = make;
+  // The workspace's own link, renewed to 30 days once as Link opens at the defaults, so "Vale até" says the truth.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (!plain || asked.current) return;
+    asked.current = true;
+    mutate(
+      { roleIds: [], channelIds: [], agentIds: [], expiresIn: INVITE_LINK_TTL, maxUses: null },
+      { onSuccess: setWorkspace, onError: (e) => setError(errorText(t, e)) },
     );
-  });
+  }, [plain, mutate, t]);
+  const shown = plain ? workspace : made && sameChoices(made.choices, now) ? made.link : null;
+  const create = () => {
+    setError(null);
+    const c = now;
+    make.mutate(c, { onSuccess: (link) => setMade({ choices: c, link }), onError: (e) => setError(errorText(t, e)) });
+  };
+  const ttlWords = (ttl: LinkChoices["expiresIn"]) => t(`invites.ttl.${ttl}`);
+  const until = shown
+    ? shown.neverExpires
+      ? t("invites.never")
+      : t("members.link.until", { date: formatShortDate(i18n.language, shown.expiresAt) })
+    : expiresIn === "never"
+      ? t("invites.never")
+      : t("invites.validFor", { ttl: ttlWords(expiresIn) });
+  const linkLabel = t("invites.link");
+  // One button in one place: Copiar link, Copiado and Criar link stacked in one cell, the widest sizing it.
+  const button: { icon: IconName; key: "copy" | "copied" | "make" } = !shown
+    ? { icon: "plus", key: "make" }
+    : copied === shown.id
+      ? { icon: "check", key: "copied" }
+      : { icon: "copy", key: "copy" };
+  const words = { copy: t("members.copyLink"), copied: t("common.copied"), make: t("members.link.make") };
   return (
-    <p className="setup-line ac-iconline">
-      <Icon name="audienceEveryone" size={14} />
-      <span>
-        <Trans i18nKey="members.dialog.reach.line" count={open.length} components={{ agents: <>{names}</> }} />
-      </span>
-    </p>
+    <>
+      <Field
+        label={linkLabel}
+        id="invite-link"
+        hint={{ name: t("common.about", { label: linkLabel }), text: t("members.dialog.orLink.text") }}
+      >
+        <div className="invite-linkrow">
+          <Input
+            readOnly
+            value={shown?.url ?? ""}
+            placeholder={t("invites.linkEmpty")}
+            data-empty={!shown || undefined}
+            onFocus={(e) => e.currentTarget.select()}
+            aria-describedby="invite-link-until"
+          />
+          <Button
+            variant={shown ? "default" : "primary"}
+            loading={make.isPending}
+            disabled={plain && !shown}
+            onClick={() => (shown ? copy(shown.id, shown.url) : create())}
+          >
+            <span className="ac-swap">
+              {(["copy", "copied", "make"] as const).map((k) => (
+                <span key={k} aria-hidden={k !== button.key || undefined}>
+                  <Icon name={k === "copy" ? "copy" : k === "copied" ? "check" : "plus"} />
+                  {words[k]}
+                </span>
+              ))}
+            </span>
+          </Button>
+        </div>
+        {error ? (
+          <FieldLine tone="danger">{t("invites.linkFailed", { cause: error })}</FieldLine>
+        ) : (
+          <FieldLine id="invite-link-until" icon="clock">
+            {until}
+          </FieldLine>
+        )}
+      </Field>
+      <RoleField choices={choices} id="invite-link-role" />
+      <ChannelsField choices={choices} id="invite-link-channels" fromChannelId={fromChannelId} />
+      <AgentsField choices={choices} id="invite-link-agents" live={live} onGo={onGo} />
+      <LinkLimits
+        expiresIn={expiresIn}
+        onExpiresIn={(v) => v !== "keep" && setExpiresIn(v)}
+        maxUses={maxUses}
+        onMaxUses={setMaxUses}
+      />
+    </>
   );
 }
+
+/** "Sem limite" in a select: no value of its own. */
+const NO_LIMIT = "none";
 
 /**
- * The invitation email as it arrives, in the words the server sends it in (the `invitation` template,
- * packages/engine/src/email.ts): who sent it and to whom, the subject, the headline, who invites to which workspace,
- * the note, the button and how long it works.
+ * Validade and Máximo de pessoas side by side, one height and one right edge. `first`: Editar link's own option before
+ * the list, the link as it is ("Até 13 de dez."); `used`: how many the link took, the maximums under it off.
  */
-function MailPreview({ to, names, note }: { to: readonly string[]; names: readonly string[]; note: string }) {
+export function LinkLimits({
+  expiresIn,
+  onExpiresIn,
+  maxUses,
+  onMaxUses,
+  first,
+  used,
+}: {
+  expiresIn: LinkChoices["expiresIn"] | "keep";
+  onExpiresIn: (ttl: LinkChoices["expiresIn"] | "keep") => void;
+  maxUses: number | null;
+  onMaxUses: (max: number | null) => void;
+  first?: string;
+  used?: number;
+}) {
   const { t } = useTranslation();
-  const { org, me } = useOrg();
-  const [head = ""] = to;
-  const toSaid = to.length > 1 ? t("members.dialog.mail.toMany", { email: head, count: to.length - 1 }) : head;
-  const said = note.trim();
+  const ttls = [
+    ...(first ? [{ value: "keep" as const, label: first }] : []),
+    ...INVITE_LINK_TTLS.map((v) => ({ value: v, label: t(`invites.ttl.${v}`) })),
+  ];
+  const maxes = INVITE_LINK_MAX_USES.map((m) => ({
+    value: m === null ? NO_LIMIT : String(m),
+    label: m === null ? t("invites.noLimit") : t("invites.people", { count: m }),
+    disabled: m !== null && used !== undefined && m < used,
+  }));
   return (
-    <figure className="invite-mail-fig">
-      <figcaption className="invite-mail-label">
-        <Icon name="mail" size={16} />
-        {t("members.dialog.mailFor", { names: namesText(t, [...names], 2) })}
-      </figcaption>
-      <div className="invite-mail">
-        <div className="invite-mail__from">
-          <LogoMark size={28} />
-          <span className="invite-mail__who">
-            <b>{t("members.dialog.mail.subject")}</b>
-            <span>{t("members.dialog.mail.from", { to: toSaid })}</span>
-          </span>
-        </div>
-        <h3 className="invite-mail__title">{t("members.dialog.mail.headline")}</h3>
-        <p>
-          <Trans
-            i18nKey="members.dialog.mail.body"
-            values={{ name: me.user.name, email: me.user.email, org: org.name }}
-            components={{ b: <b /> }}
-            {...TYPED_VALUES}
-          />
-        </p>
-        {said && (
-          <p className="invite-mail__note">
-            <Trans
-              i18nKey="members.dialog.mail.noteFrom"
-              values={{ name: me.user.name, note: said }}
-              components={{ b: <b /> }}
-              {...TYPED_VALUES}
-            />
-          </p>
-        )}
-        <p className="invite-mail__what">{t("members.dialog.mail.what")}</p>
-        <span className="invite-mail__btn">{t("members.dialog.mail.button")}</span>
-        <span className="invite-mail__foot">{t("members.dialog.mail.small")}</span>
-      </div>
-    </figure>
-  );
-}
-
-/** The requests to join waiting (ADR 0068): who asked, and the way to Members, where each is answered. */
-function LinkRequests({ requests, onOpen }: { requests: readonly { id: string; name: string }[]; onOpen: () => void }) {
-  const { t } = useTranslation();
-  const { org } = useOrg();
-  if (requests.length === 0) return null;
-  return (
-    <div className="invite-waiting">
-      <AvatarStack aria-hidden="true">
-        {requests.slice(0, 3).map((r) => (
-          <Avatar key={r.id} name={r.name} size="sm" />
-        ))}
-      </AvatarStack>
-      <span className="ac-actline">
-        <span className="invite-waiting__text">
-          <b>{t("members.dialog.linkStep.waiting", { count: requests.length })}</b>
-          <span>
-            {namesText(
-              t,
-              requests.map((r) => r.name),
-              2,
-            )}
-          </span>
-        </span>
-        <Button size="sm" asChild>
-          <Link to="/org/$orgId/settings/$section" params={{ orgId: org.id, section: "members" }} onClick={onOpen}>
-            {t("members.dialog.linkStep.seeRequests")}
-          </Link>
-        </Button>
-      </span>
+    <div className="invite-pair">
+      <Field label={t("invites.expiresIn")} id="invite-link-ttl">
+        <Select value={expiresIn} options={ttls} onValueChange={onExpiresIn} />
+      </Field>
+      <Field
+        label={t("invites.maxUses")}
+        id="invite-link-max"
+        example={used ? t("invites.usedSoFar", { count: used }) : undefined}
+      >
+        <Select
+          value={maxUses === null ? NO_LIMIT : String(maxUses)}
+          options={maxes}
+          onValueChange={(v) => onMaxUses(v === NO_LIMIT ? null : Number(v))}
+        />
+      </Field>
     </div>
   );
 }

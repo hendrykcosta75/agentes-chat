@@ -1,10 +1,8 @@
 import { useMe } from "@agenteschat/client";
 import { membershipIn, settingUp } from "@agenteschat/client/lib/guards";
 import { can } from "@agenteschat/client/lib/permissions";
-import { Button, EmptyState } from "@agenteschat/ui";
-import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
 import { requireUserIn } from "@/app/guards";
 import { usePageTextSize } from "@/chat/look";
 import { useFollowPickedAgent } from "@/components/AppIconPicker";
@@ -24,6 +22,7 @@ import { OutageNotices } from "@/components/MachineOutages";
 import { NavDrawerProvider, NavScrim, ShellBar } from "@/components/NavDrawer";
 import { NoticeIsland } from "@/components/NoticeIsland";
 import { PushOpens } from "@/components/NotificationOpen";
+import { NotMember } from "@/components/NotMember";
 import { NewAgentProvider } from "@/components/new-agent/NewAgentDialog";
 import { OrgProvider } from "@/components/org-context";
 import { RemoveMemberProvider } from "@/components/RemoveMember";
@@ -61,7 +60,6 @@ function OrgLayout() {
   // The cached person, so a new logo or workspace name shows at once, not at the next navigation.
   const me = useMe().data ?? loaded.me;
   const membership = membershipIn(me, orgId);
-  const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const href = useRouterState({ select: (s) => s.location.href });
   // "Criar agente" is a focused flow with its own rail: no sidebar while it's open (admins only; others see why not).
@@ -99,28 +97,7 @@ function OrgLayout() {
   const strip = inDesktopApp() && <DesktopDragStrip />;
 
   if (gone) return strip || null;
-  if (!membership) {
-    return (
-      <div className="page page--mid">
-        {strip}
-        <header className="page__header">
-          <h1 className="page-title">
-            {removedFrom ? t("members.remove.goneTitle", { org: removedFrom }) : t("empty.noOrgTitle")}
-          </h1>
-        </header>
-        <EmptyState
-          icon="members"
-          actions={
-            <Button asChild>
-              <Link to="/">{t("empty.goHome")}</Link>
-            </Button>
-          }
-        >
-          {removedFrom ? t("members.remove.goneText") : t("empty.noOrgText")}
-        </EmptyState>
-      </div>
-    );
-  }
+  if (!membership) return <NotMember me={me} orgId={orgId} removedFrom={removedFrom} strip={strip} />;
 
   // Suspended: its own screen, the socket still open so lifting it brings the workspace back at once.
   if (membership.standing?.state === "suspended") {

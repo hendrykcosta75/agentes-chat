@@ -814,8 +814,16 @@ html:not([data-pointer]) .roles-iconpick:focus-visible {
 .roles-picker__value {
   flex: 1;
   min-width: 0;
+  display: flex;
+  gap: var(--space-2);
   text-align: left;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+.roles-picker__item {
+  min-width: 0;
+}
+.roles-picker__item > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

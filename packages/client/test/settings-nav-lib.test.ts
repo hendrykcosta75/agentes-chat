@@ -13,6 +13,7 @@ const ALL = [
   "media",
   "voice",
   "members",
+  "invites",
   "roles",
   "usage",
   "billing",
@@ -46,8 +47,8 @@ describe("a team's list", () => {
     const short = teamSettings(true);
     expect(settingsTabs("account", ALL, short)).toEqual(["account", "notifications", "approvals", "apps"]);
     expect(settingsTabs("general", ALL, short)).toEqual(["general", "media", "voice"]);
-    // Cargos is an entry of its own (ADR 0085 addendum of 2026-11-13), no tab of People.
-    expect(settingsTabs("members", ALL, short)).toEqual([]);
+    // Cargos is an entry of its own (ADR 0085 addendum of 2026-11-13); People holds Membros and Convites (ADR 0184).
+    expect(settingsTabs("members", ALL, short)).toEqual(["members", "invites"]);
     expect(settingsTabs("roles", ALL, short)).toEqual([]);
     expect(settingsTabs("connectors", ALL, short)).toEqual(["connectors", "skills", "vault", "access"]);
     expect(settingsTabs("usage", ALL, short)).toEqual([]);
@@ -73,7 +74,8 @@ describe("a personal workspace's list", () => {
     expect(ids(main)).toEqual(["account", "general", "usage", "connectors", "vault", "devices"]);
     expect(ids(advanced)).toEqual(["members", "roles", "storage", "import", "audit", "about"]);
     expect(settingsTabs("connectors", ALL, short)).toEqual(["connectors", "skills", "access"]);
-    expect(settingsTabs("members", ALL, short)).toEqual([]);
+    // Inviting someone in works the same: People's Convites tab.
+    expect(settingsTabs("members", ALL, short)).toEqual(["members", "invites"]);
   });
 
   test("with other people here People is on the list", () => {

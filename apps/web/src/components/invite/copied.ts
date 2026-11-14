@@ -3,7 +3,7 @@ import { copyText } from "@/lib/context-menu";
 import { useToast } from "@/lib/toast";
 
 /** How long a button says "Copiado" before it reads as itself again. */
-const COPIED_MS = 2000;
+const COPIED_MS = 1800;
 
 /**
  * Copies a text and remembers which button did it (`key`) for a moment: that button says "Copiado" with a check,

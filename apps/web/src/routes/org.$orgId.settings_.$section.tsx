@@ -28,7 +28,11 @@ function RightHandRedirect() {
 export const Route = createFileRoute("/org/$orgId/settings_/$section")({
   validateSearch: settingsSearch,
   beforeLoad: ({ params, search }) => {
-    const moved = MOVED_SETTINGS_SECTIONS[params.section];
+    // The admins' e-mail about a request (`?request=…&do=…`) names Members: requests are answered in Convites now.
+    const moved =
+      params.section === "members" && search.request !== undefined
+        ? "invites"
+        : MOVED_SETTINGS_SECTIONS[params.section];
     if (moved)
       throw redirect({
         to: "/org/$orgId/settings/$section",

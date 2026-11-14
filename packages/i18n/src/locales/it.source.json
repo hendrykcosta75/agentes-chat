@@ -1823,11 +1823,23 @@
       "other": "{{names}} work there"
     }
   },
+  "invite.crewYours": {
+    "value": {
+      "one": "{{names}} will work with you",
+      "other": "{{names}} will work with you"
+    }
+  },
   "invite.hello": {
     "value": "Hi. {{name}} invited you to {{org}}."
   },
   "invite.helloNoName": {
     "value": "Hi. {{org}} invited you."
+  },
+  "invite.helloAs": {
+    "value": "Hi. {{name}} invited you to {{org}}, as {{roles}}."
+  },
+  "invite.helloAsNoName": {
+    "value": "Hi. {{org}} invited you, as {{roles}}."
   },
   "invite.nameLead": {
     "value": "First: what does the team call you?"
@@ -1843,6 +1855,12 @@
   },
   "invite.calledYouNoName": {
     "value": "{{org}} invited you."
+  },
+  "invite.calledYouAs": {
+    "value": "{{name}} invited you to {{org}}, as {{roles}}."
+  },
+  "invite.calledYouAsNoName": {
+    "value": "{{org}} invited you, as {{roles}}."
   },
   "invite.signedInLead": {
     "value": "You're signed in as {{email}}. Just join."
@@ -2071,6 +2089,15 @@
   },
   "invite.ask.closedText": {
     "value": "Ask whoever sent it for a new one."
+  },
+  "invite.ask.fullTitle": {
+    "value": "This link already took everyone it could."
+  },
+  "invite.ask.fullLead": {
+    "value": "Ask {{name}} for a new link."
+  },
+  "invite.ask.fullLeadNoName": {
+    "value": "Ask whoever sent it for a new link."
   },
   "invite.ask.hello": {
     "value": "Hi. This is {{org}}'s invitation."
@@ -17427,7 +17454,7 @@
     "value": "You're no longer part of {{org}}"
   },
   "members.remove.goneText": {
-    "value": "Your access to this workspace ended. To come back, ask someone there for a new invite."
+    "value": "Your access ended. To come back, ask for a new invitation."
   },
   "members.chips.check": {
     "value": "check"
@@ -17452,21 +17479,6 @@
   },
   "members.dialog.titlePersonal": {
     "value": "Invite someone to your workspace"
-  },
-  "members.dialog.stepOf": {
-    "value": "Step {{n}} of {{total}} · {{step}}"
-  },
-  "members.dialog.steps.who": {
-    "value": "Who"
-  },
-  "members.dialog.steps.role": {
-    "value": "Role"
-  },
-  "members.dialog.steps.where": {
-    "value": "Where they start"
-  },
-  "members.dialog.steps.note": {
-    "value": "Note"
   },
   "members.dialog.emails": {
     "value": "Emails"
@@ -17507,9 +17519,6 @@
   "members.dialog.or": {
     "value": "or send the link"
   },
-  "members.dialog.continueWith": {
-    "value": "Continue with {{count}}"
-  },
   "members.dialog.send": {
     "value": {
       "one": "Invite {{count}} person",
@@ -17525,12 +17534,6 @@
   "members.dialog.alsoIn": {
     "value": "They also join {{channels}}."
   },
-  "members.dialog.who.title": {
-    "value": "Who do you want to bring in?"
-  },
-  "members.dialog.who.lead": {
-    "value": "Give me their emails. Each person gets an invitation and joins directly."
-  },
   "members.dialog.orLink.title": {
     "value": "Rather send a link?"
   },
@@ -17540,35 +17543,11 @@
   "members.dialog.orLink.open": {
     "value": "See the link"
   },
-  "members.dialog.role.titleOne": {
-    "value": "What role does {{name}} join with?"
-  },
-  "members.dialog.role.titleMany": {
-    "value": "What role do these people join with?"
-  },
-  "members.dialog.role.lead": {
-    "value": "The role says what each person can do. You can change it later."
-  },
-  "members.dialog.role.each": {
-    "value": "A role for each person"
-  },
-  "members.dialog.role.same": {
-    "value": "The same role for everyone"
-  },
   "members.dialog.role.titleOnePersonal": {
     "value": "What can {{name}} do here?"
   },
-  "members.dialog.role.titleManyPersonal": {
-    "value": "What can they do here?"
-  },
   "members.dialog.role.leadPersonal": {
     "value": "You can change it later."
-  },
-  "members.dialog.role.eachPersonal": {
-    "value": "A choice for each person"
-  },
-  "members.dialog.role.samePersonal": {
-    "value": "The same for everyone"
   },
   "members.dialog.role.uses": {
     "value": "Uses the agents"
@@ -17582,36 +17561,6 @@
   "members.dialog.role.helpsText": {
     "value": "Can change agents, settings and who's here, as you can. Sees everything shared here, except your direct messages."
   },
-  "members.dialog.reach.line": {
-    "value": {
-      "one": "<agents/> will answer whoever joins.",
-      "other": "<agents/> will answer whoever joins."
-    }
-  },
-  "members.dialog.where.titleOne": {
-    "value": "Which channels does {{name}} join right away?"
-  },
-  "members.dialog.where.titleMany": {
-    "value": "Which channels do these people join right away?"
-  },
-  "members.dialog.where.titleOnePersonal": {
-    "value": "Which group conversations does {{name}} join right away?"
-  },
-  "members.dialog.where.titleManyPersonal": {
-    "value": "Which group conversations do these people join right away?"
-  },
-  "members.dialog.where.lead": {
-    "value": "Everyone starts in #{{channel}}. You pick the others."
-  },
-  "members.dialog.where.label": {
-    "value": "Channels"
-  },
-  "members.dialog.where.labelPersonal": {
-    "value": "Group conversations"
-  },
-  "members.dialog.where.everyone": {
-    "value": "Everyone joins"
-  },
   "members.dialog.where.private": {
     "value": "Private · you're in it"
   },
@@ -17620,75 +17569,6 @@
       "one": "{{count}} person",
       "other": "{{count}} people"
     }
-  },
-  "members.dialog.where.fromChannel": {
-    "value": "#{{channel}} comes checked: you invited from there."
-  },
-  "members.dialog.noteStep.title": {
-    "value": "Want me to say something in the invitation?"
-  },
-  "members.dialog.noteStep.lead": {
-    "value": "It goes in the email. If not, I'll send it as it is."
-  },
-  "members.dialog.mailFor": {
-    "value": "This is how it reaches {{names}}"
-  },
-  "members.dialog.mail.from": {
-    "value": "agentes.chat · to {{to}}"
-  },
-  "members.dialog.mail.toMany": {
-    "value": "{{email}} and {{count}} more"
-  },
-  "members.dialog.mail.subject": {
-    "value": "You're invited to a workspace on agentes.chat"
-  },
-  "members.dialog.mail.headline": {
-    "value": "You're invited to a workspace"
-  },
-  "members.dialog.mail.body": {
-    "value": "<b>{{name}}</b> ({{email}}) invited you to join <b>{{org}}</b> as a member."
-  },
-  "members.dialog.mail.noteFrom": {
-    "value": "<b>{{name}}:</b> “{{note}}”"
-  },
-  "members.dialog.mail.what": {
-    "value": "agentes.chat is where people and AI agents work together."
-  },
-  "members.dialog.mail.button": {
-    "value": "Accept invitation"
-  },
-  "members.dialog.mail.small": {
-    "value": "The invitation works for 7 days. Accept it with this email address."
-  },
-  "members.dialog.done.title": {
-    "value": "Done, I sent the invitation to {{names}}."
-  },
-  "members.dialog.done.leadOne": {
-    "value": "When {{name}} joins, I'll greet them in {{channels}} and let you know."
-  },
-  "members.dialog.done.leadMany": {
-    "value": "When each person joins, I'll greet them in {{channels}} and let you know."
-  },
-  "members.dialog.done.none": {
-    "value": "No invitation went out this time."
-  },
-  "members.dialog.done.noneLead": {
-    "value": "Each address's reason is below."
-  },
-  "members.dialog.result.invited": {
-    "value": "Sent"
-  },
-  "members.dialog.result.already_member": {
-    "value": "already in {{org}}"
-  },
-  "members.dialog.result.already_memberPersonal": {
-    "value": "already here"
-  },
-  "members.dialog.result.already_invited": {
-    "value": "already had an invitation"
-  },
-  "members.dialog.result.invalid_email": {
-    "value": "invalid email"
   },
   "members.dialog.again": {
     "value": "Invite more people"
@@ -17848,12 +17728,12 @@
   },
   "members.suggest.sent": {
     "value": {
-      "one": "Suggestion sent. {{names}} sees it in Members and invitations.",
-      "other": "Suggestion sent. {{names}} see it in Members and invitations."
+      "one": "Suggestion sent. {{names}} sees it in Invitations.",
+      "other": "Suggestion sent. {{names}} see it in Invitations."
     }
   },
   "members.suggest.sentNoNames": {
-    "value": "Suggestion sent. Whoever invites sees it in Members and invitations."
+    "value": "Suggestion sent. Whoever invites sees it in Invitations."
   },
   "members.suggest.refused.invalid": {
     "value": "Check the email: something like name@company.com."
@@ -17890,6 +17770,9 @@
   },
   "members.arrival.lead": {
     "value": "Here the team and the agents work together: write in #{{channel}} or call an agent by name."
+  },
+  "members.arrival.alsoIn": {
+    "value": "You're also in {{channels}}."
   },
   "members.arrival.sayHi": {
     "value": "Say hi in #{{channel}}"
@@ -18051,6 +17934,292 @@
   "members.noAgents": {
     "value": "No agents yet."
   },
+  "invites.how": {
+    "value": "How to invite"
+  },
+  "invites.byEmail": {
+    "value": "Email"
+  },
+  "invites.byLink": {
+    "value": "Link"
+  },
+  "invites.to": {
+    "value": "To"
+  },
+  "invites.role": {
+    "value": "Role"
+  },
+  "invites.roleHint": {
+    "value": "What the person can do. Roles add to what Everyone can. Only for people."
+  },
+  "invites.rolePersonal": {
+    "value": "Can"
+  },
+  "invites.channels": {
+    "value": "Channels"
+  },
+  "invites.channelsPersonal": {
+    "value": "Conversations"
+  },
+  "invites.channelsHint": {
+    "value": "Where the person starts. The role's channels come ticked."
+  },
+  "invites.channelsHintPersonal": {
+    "value": "Where the person starts."
+  },
+  "invites.agents": {
+    "value": "Agents"
+  },
+  "invites.agentsHint": {
+    "value": "Who the person works with. They sit at the top of their list. A restricted agent starts answering them."
+  },
+  "invites.addChannel": {
+    "value": "Add a channel…"
+  },
+  "invites.addChannelPersonal": {
+    "value": "Add a conversation…"
+  },
+  "invites.addAgent": {
+    "value": "Add an agent…"
+  },
+  "invites.noChannel": {
+    "value": "No channel matches “{{query}}”."
+  },
+  "invites.noChannels": {
+    "value": "No other channels yet."
+  },
+  "invites.noAgent": {
+    "value": "No agent matches “{{query}}”."
+  },
+  "invites.noAgents": {
+    "value": "No other agents yet."
+  },
+  "invites.general": {
+    "value": "Everyone joins #{{channel}}."
+  },
+  "invites.rightHand": {
+    "value": "Everyone has {{name}}."
+  },
+  "invites.fromRole": {
+    "value": "Comes with the {{role}} role."
+  },
+  "invites.fromChannel": {
+    "value": "You invited from here."
+  },
+  "invites.groupRole": {
+    "value": {
+      "one": "From the {{roles}} role",
+      "other": "From the {{roles}} roles"
+    }
+  },
+  "invites.agent.byRole": {
+    "value": "Through the {{role}} role"
+  },
+  "invites.agent.opens": {
+    "value": "Restricted · you let them in"
+  },
+  "invites.agent.locked": {
+    "value": "Restricted · only {{name}} lets people in"
+  },
+  "invites.agent.lockedNoOwner": {
+    "value": "Restricted · only admins let people in"
+  },
+  "invites.agent.mailbox": {
+    "value": "Reads {{names}}'s email"
+  },
+  "invites.agent.mailboxHint": {
+    "value": "Opening it to more people takes that access away. Decide on the agent's page."
+  },
+  "invites.agent.plan": {
+    "value": "Only answers {{name}}"
+  },
+  "invites.agent.planMine": {
+    "value": "Only answers you"
+  },
+  "invites.agent.rightHand": {
+    "value": "Everyone has {{name}}"
+  },
+  "invites.opens": {
+    "value": {
+      "one": "{{names}} starts answering whoever joins through this invitation.",
+      "other": "{{names}} start answering whoever joins through this invitation."
+    }
+  },
+  "invites.noTalk": {
+    "value": "With this role, the person doesn't talk to agents."
+  },
+  "invites.admin": {
+    "value": "With {{role}}, the person sees every agent."
+  },
+  "invites.offline": {
+    "value": "Couldn't reach the server. Nothing was sent."
+  },
+  "invites.refused.channelArchived": {
+    "value": "#{{channel}} was archived. Remove the channel to send."
+  },
+  "invites.refused.channelLeft": {
+    "value": "You're no longer in #{{channel}}. Remove the channel to send."
+  },
+  "invites.refused.channelGone": {
+    "value": "One of the channels no longer exists. Remove the marked one to send."
+  },
+  "invites.refused.agentGone": {
+    "value": "{{name}} left the team. Remove them from the invitation to send."
+  },
+  "invites.refused.agentLocked": {
+    "value": "You can no longer let people talk to {{name}}. Remove them from the invitation to send."
+  },
+  "invites.refused.role": {
+    "value": "You can no longer give the {{role}} role. Pick another."
+  },
+  "invites.refused.roleMany": {
+    "value": "You can no longer give one of these roles. Pick others."
+  },
+  "invites.link": {
+    "value": "Link"
+  },
+  "invites.linkEmpty": {
+    "value": "Make the link to copy it"
+  },
+  "invites.linkFailed": {
+    "value": "Couldn't make the link. {{cause}}"
+  },
+  "invites.never": {
+    "value": "Never expires"
+  },
+  "invites.untilDate": {
+    "value": "Until {{date}}"
+  },
+  "invites.validFor": {
+    "value": "Works for {{ttl}} once made."
+  },
+  "invites.expiresIn": {
+    "value": "Expires after"
+  },
+  "invites.maxUses": {
+    "value": "Most people"
+  },
+  "invites.ttl.30m": {
+    "value": "30 minutes"
+  },
+  "invites.ttl.1h": {
+    "value": "1 hour"
+  },
+  "invites.ttl.1d": {
+    "value": "1 day"
+  },
+  "invites.ttl.7d": {
+    "value": "7 days"
+  },
+  "invites.ttl.30d": {
+    "value": "30 days"
+  },
+  "invites.ttl.never": {
+    "value": "Never expires"
+  },
+  "invites.people": {
+    "value": {
+      "one": "{{count}} person",
+      "other": "{{count}} people"
+    }
+  },
+  "invites.noLimit": {
+    "value": "No limit"
+  },
+  "invites.usedSoFar": {
+    "value": {
+      "one": "{{count}} already joined",
+      "other": "{{count}} already joined"
+    }
+  },
+  "invites.linkSaved": {
+    "value": "Link saved. The address stays the same."
+  },
+  "invites.invitationTitle": {
+    "value": "Invitation for {{email}}"
+  },
+  "invites.invitationSaved": {
+    "value": "Invitation for {{email}} updated."
+  },
+  "invites.invitationExpired": {
+    "value": "This invitation expired. Renew it to change what it gives."
+  },
+  "invites.search": {
+    "value": "Search email or role"
+  },
+  "invites.type": {
+    "value": "Type"
+  },
+  "invites.types.requests": {
+    "value": "Requests"
+  },
+  "invites.types.links": {
+    "value": "Links"
+  },
+  "invites.types.emails": {
+    "value": "Emails"
+  },
+  "invites.typesCount": {
+    "value": {
+      "one": "{{count}} type",
+      "other": "{{count}} types"
+    }
+  },
+  "invites.noMatch": {
+    "value": "No invitation matches “{{query}}”."
+  },
+  "invites.links": {
+    "value": "Links"
+  },
+  "invites.emails": {
+    "value": "Email invitations"
+  },
+  "invites.viaLinkOf": {
+    "value": "Asked through {{name}}'s link {{when}}"
+  },
+  "invites.withLink": {
+    "value": "With the link: {{gives}}."
+  },
+  "invites.roleLeftOut": {
+    "value": {
+      "one": "{{roles}} is left out: it's above your role.",
+      "other": "{{roles}} are left out: they're above your role."
+    }
+  },
+  "invites.linkLabel": {
+    "value": "Link {{name}}"
+  },
+  "invites.linkMore": {
+    "value": "More actions for the {{name}} link"
+  },
+  "invites.usesOf": {
+    "value": {
+      "one": "{{uses}} of {{count}} person",
+      "other": "{{uses}} of {{count}} people"
+    }
+  },
+  "invites.joined": {
+    "value": {
+      "zero": "Nobody joined yet",
+      "one": "{{count}} person joined",
+      "other": "{{count}} people joined"
+    }
+  },
+  "invites.expiresLeft": {
+    "value": "expires in {{left}}"
+  },
+  "invites.neverEnds": {
+    "value": "never expires"
+  },
+  "invites.by": {
+    "value": "by {{name}}"
+  },
+  "invites.edit": {
+    "value": "Edit"
+  },
+  "invites.turnOff": {
+    "value": "Turn off link"
+  },
   "empty.thread.title": {
     "value": "Threads"
   },
@@ -18097,7 +18266,10 @@
     "value": "You're not part of this workspace"
   },
   "empty.noOrgText": {
-    "value": "Ask someone in the workspace for an invitation, or go back to yours."
+    "value": "Ask someone there for an invitation."
+  },
+  "empty.noOrgBack": {
+    "value": "Back to your workspaces"
   },
   "empty.crashTitle": {
     "value": "Something went wrong"
@@ -37666,7 +37838,10 @@
     "value": "Right hand"
   },
   "settings.section.members": {
-    "value": "Members and invitations"
+    "value": "Members"
+  },
+  "settings.section.invites": {
+    "value": "Invitations"
   },
   "settings.section.roles": {
     "value": "Roles"
@@ -37747,7 +37922,10 @@
     "value": "The assistant that builds the team with each person, in their DM."
   },
   "settings.sectionText.members": {
-    "value": "Who is in the workspace, and invitations."
+    "value": "Who is in the workspace."
+  },
+  "settings.sectionText.invites": {
+    "value": "Who can come in and what they get."
   },
   "settings.sectionText.roles": {
     "value": "Each role adds permissions, channels and agents."
@@ -37804,7 +37982,7 @@
     "value": "Your apps and MCP servers, connected once for your agents."
   },
   "settings.sectionText.membersPersonal": {
-    "value": "Who's here with you, and invitations."
+    "value": "Who's here with you."
   },
   "settings.sectionText.rolesPersonal": {
     "value": "What each person here can do. The owner can do everything."

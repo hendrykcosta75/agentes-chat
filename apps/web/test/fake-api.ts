@@ -433,6 +433,10 @@ export interface FakeState {
   joinCode?: string;
   /** Make `invites.sendCode` fail with this error (`join.code_wait`, `join.code_limit`…). */
   sendCodeError?: ApiError;
+  /** `invites.createLink` refuses with this, when set. */
+  createLinkError?: Error;
+  /** `orgs.inviteMany` fails with this, when set (no answer, a channel or an agent refused). */
+  inviteManyError?: Error;
   /** The workspace's invitation links (`invites.links`); `invites.createLink` makes one when none has a URL. */
   inviteLinks?: InviteLink[];
   /** Requests to join waiting (`joinRequests.list`). */
@@ -2027,12 +2031,14 @@ export function createFakeHttpApi(state: FakeState): Omit<HttpApi, FakedParts> {
       allInvitations: async () => structuredClone(state.invitations),
       inviteMany: async (orgId, input) => {
         log("orgs.inviteMany", orgId, input);
+        if (state.inviteManyError) throw state.inviteManyError;
         const asked = input.invites ?? (input.emails ?? []).map((email) => ({ email, roleIds: input.roleIds }));
         return asked.map(({ email, roleIds }) => {
           if (state.members.some((m) => m.email === email)) return { email, status: "already_member" as const };
           if (state.invitations.some((i) => i.email === email)) return { email, status: "already_invited" as const };
           const inv = newInvitation(email, "member", roleIds);
           inv.channelIds = input.channelIds ?? [];
+          inv.agentIds = input.agentIds ?? [];
           inv.url = `http://localhost:3000/invite/tok-${inv.id}`;
           state.invitations.push(inv);
           return {
@@ -4081,11 +4087,52 @@ export function createFakeApi(state: FakeState = seedState(), options: { seed?: 
       },
     },
     invites: {
-      // The same link every time, like the server: a new one only when none can be shown.
-      createLink: async (orgId) => {
-        state.calls.push({ method: "invites.createLink", args: [orgId] });
+      // The workspace's link every time, like the server: a new one only when none can be shown. With choices
+      // (ADR 0184) a link of its own; at the defaults the workspace's, renewed to 30 days.
+      createLink: async (orgId, choices) => {
+        state.calls.push({ method: "invites.createLink", args: choices ? [orgId, choices] : [orgId] });
+        if (state.createLinkError) throw state.createLinkError;
         state.inviteLinks ??= [];
-        let link = state.inviteLinks.find((l) => l.url !== null);
+        const plain =
+          !choices ||
+          (!choices.roleIds?.length &&
+            !choices.channelIds?.length &&
+            !choices.agentIds?.length &&
+            (choices.maxUses ?? null) === null &&
+            (choices.expiresIn ?? "30d") === "30d");
+        if (!plain && choices) {
+          const id = `link-${state.inviteLinks.length + 1}`;
+          const ttl = {
+            "30m": 30 * 60_000,
+            "1h": 3_600_000,
+            "1d": 86_400_000,
+            "7d": 7 * 86_400_000,
+            "30d": 30 * 86_400_000,
+          };
+          const never = choices.expiresIn === "never";
+          const made = {
+            id,
+            url: `http://localhost:3000/invite/${id}`,
+            expiresAt: never
+              ? "9999-12-31T00:00:00.000Z"
+              : new Date(Date.now() + ttl[(choices.expiresIn ?? "30d") as keyof typeof ttl]).toISOString(),
+            ...(never ? { neverExpires: true as const } : {}),
+            createdAt: new Date().toISOString(),
+            createdBy: "Walter",
+            createdByUserId: "u-walter",
+            waiting: 0,
+            plain: false,
+            roleIds: choices.roleIds ?? [],
+            channelIds: choices.channelIds ?? [],
+            agentIds: choices.agentIds ?? [],
+            maxUses: choices.maxUses ?? null,
+            uses: 0,
+          };
+          state.inviteLinks.unshift(made);
+          return { id, url: made.url, expiresAt: made.expiresAt, ...(never ? { neverExpires: true as const } : {}) };
+        }
+        let link = state.inviteLinks.find((l) => l.url !== null && l.plain !== false);
+        if (link && choices) link.expiresAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
         if (!link) {
           const id = `link-${state.inviteLinks.length + 1}`;
           link = {

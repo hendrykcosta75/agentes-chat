@@ -38,10 +38,12 @@
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
+/* Channels' names in it are held whole (`heldWhole`): one longer than the line breaks anywhere rather than be cut. */
 .welcome-card__lead {
   margin: 0;
   color: var(--sky-ink2);
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 .welcome-card__crew {
   position: relative;

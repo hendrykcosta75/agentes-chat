@@ -121,10 +121,11 @@ export function fallbackTarget(data: PushOpenData): OpenTarget | null {
   const kind = data.kind;
   if (kind === "approval")
     return { to: "/org/$orgId/approvals", ...(data.approvalId ? { search: { open: data.approvalId } } : {}) };
-  // Someone who joined by an invitation (ADR 0090) opens a conversation with them, from the notification
-  // (`openTarget`); a push names no person to talk to, so without it, Members, where they now are.
-  if (kind === "join_request" || kind === "invitation_accepted")
-    return { to: "/org/$orgId/settings/$section", params: { section: "members" } };
+  // A request is answered in People › Convites (ADR 0184). Someone who joined by an invitation (ADR 0090) opens a
+  // conversation with them, from the notification (`openTarget`); a push names no person to talk to, so without it,
+  // Members, where they now are.
+  if (kind === "join_request") return { to: "/org/$orgId/settings/$section", params: { section: "invites" } };
+  if (kind === "invitation_accepted") return { to: "/org/$orgId/settings/$section", params: { section: "members" } };
   // Settings › Computers is Devices now: its old address redirects there.
   if (kind === "machine_connected" || kind === "computer_ready")
     return { to: "/org/$orgId/settings/$section", params: { section: "computers" } };

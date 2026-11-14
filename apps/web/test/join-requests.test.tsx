@@ -10,13 +10,14 @@ import type {
   JoinStatus,
   Member,
   NotificationLatest,
+  OrgRole,
 } from "@agenteschat/client";
 import { ApiError, keys } from "@agenteschat/client";
 import { errorText } from "@agenteschat/client/lib/errors";
 import { icons } from "@agenteschat/ui";
 import { act, cleanup, fireEvent, within } from "@testing-library/react";
 import { createI18n } from "@/i18n";
-import { ADA_ID, ADMIN_ROLE_ID, ATLAS_ID, createFakeApi, ORG_ID, seedState } from "./fake-api";
+import { ADA_ID, ADMIN_ROLE_ID, ATLAS_ID, createFakeApi, ORG_ID, seedRoles, seedState } from "./fake-api";
 import { createFakeAuth } from "./fake-auth";
 import { notification } from "./fakes/notifications";
 import { hintOf } from "./hint";
@@ -582,6 +583,13 @@ describe("an invitation link asks to join", () => {
     expect(button("Abrir Acme")).toBeTruthy();
   });
 
+  test("a link that took all its people says so before anyone asks, and whom to ask for a new one", async () => {
+    await openLink({ ...LINK, full: true });
+    expect(heading()).toBe("Este link já recebeu todas as pessoas que podia.");
+    expect(lead()).toBe("Peça um link novo a Marina.");
+    expect(screen().queryByLabelText("Seu e-mail")).toBeNull();
+  });
+
   test("whoever works there is counted: the first four by name, then how many more", async () => {
     const agents = ["Ada", "Atlas", "Lia", "Theo"].map((name, i) => ({ id: `a${i}`, name, appearance: null }));
     await openLink({ ...LINK, agents, moreAgents: 2 });
@@ -669,10 +677,11 @@ const requests = (): JoinRequest[] => [
   },
 ];
 
-async function members(query = "", patch: Parameters<typeof seedState>[0] = {}) {
+/** People › Convites (`section`: another of People's tabs, or Members' old address the admins' e-mail names). */
+async function members(query = "", patch: Parameters<typeof seedState>[0] = {}, section = "invites") {
   setSystemTime(MIDDAY);
   const state = seedState({ joinRequests: requests(), ...patch });
-  const r = await renderApp(`/org/${ORG_ID}/settings/members${query}`, { api: createFakeApi(state) });
+  const r = await renderApp(`/org/${ORG_ID}/settings/${section}${query}`, { api: createFakeApi(state) });
   await settle(6);
   return { ...r, state };
 }
@@ -693,7 +702,7 @@ const suggestion = (): JoinRequest => ({
 const stateOf = (row: HTMLElement) => row.querySelector(".members-row__state")?.textContent;
 const noteOf = (row: HTMLElement) => row.querySelector(".members-row__note")?.textContent ?? null;
 
-describe("Members › Esperando você", () => {
+describe("People › Convites › Esperando você", () => {
   test("who asked through the link and whom a member suggested: how and when, the note in a well; approve with roles", async () => {
     setSystemTime(MIDDAY);
     const { state } = await members("", { joinRequests: [...requests(), suggestion()] });
@@ -763,7 +772,7 @@ describe("Members › Esperando você", () => {
   });
 
   test("someone let in elsewhere (another admin, another tab) shows at once: in the people and the sidebar's count", async () => {
-    const { state, sockets, services } = await members();
+    const { state, sockets, services } = await members("", {}, "members");
     const socket = sockets.last();
     await act(async () => socket.open());
     const agentFetches = () => services.queryClient.getQueryState(keys.agents(ORG_ID))?.dataUpdateCount ?? 0;
@@ -810,7 +819,7 @@ describe("Members › Esperando você", () => {
       new Promise((_, reject) => {
         refuse = reject;
       });
-    await renderApp(`/org/${ORG_ID}/settings/members`, { api });
+    await renderApp(`/org/${ORG_ID}/settings/invites`, { api });
     await settle(6);
     await click(within(card("Ana Souza")).getByRole("button", { name: "Recusar" }));
     const dialog = screen().getByRole("dialog", { name: "Recusar o pedido de Ana Souza?" });
@@ -828,17 +837,98 @@ describe("Members › Esperando você", () => {
     expect(reason.value).toBe("Só a equipe");
   });
 
-  test("the email's links: Deny opens its dialog, Approve focuses its button, a gone request says so", async () => {
-    await members("?request=r2&do=deny");
+  test("the email's links, to Members' old address: Convites opens, Deny's dialog, Approve focused, a gone request said", async () => {
+    const { router } = await members("?request=r2&do=deny", {}, "members");
+    expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/invites`);
     expect(screen().getByRole("dialog", { name: "Recusar o pedido de Bruno Lima?" })).toBeTruthy();
     cleanup();
 
-    await members("?request=r1&do=approve");
+    await members("?request=r1&do=approve", {}, "members");
     expect(document.activeElement === within(card("Ana Souza")).getByRole("button", { name: "Aprovar" })).toBe(true);
     cleanup();
 
-    await members("?request=r9&do=approve");
+    await members("?request=r9&do=approve", {}, "members");
     expect(screen().getByRole("status").textContent).toContain("Alguém já respondeu este pedido, ou ele expirou.");
+  });
+
+  test("a request through a link with choices: what it gives, its cargos to start on; a full link waits for more room", async () => {
+    setSystemTime(MIDDAY);
+    const link = {
+      id: "link-sup",
+      createdBy: "Marina Alves",
+      roleIds: [ADMIN_ROLE_ID],
+      channelIds: [],
+      agentIds: [ADA_ID],
+      full: false,
+    };
+    const { state } = await members("", {
+      joinRequests: [
+        { ...(requests()[0] as JoinRequest), link },
+        { ...(requests()[1] as JoinRequest), link: { ...link, id: "link-full", full: true } },
+      ],
+    });
+    const ana = card("Ana Souza");
+    expect(stateOf(ana)).toBe("Pediu pelo link de Marina Alves há 2 h");
+    expect(ana.textContent).toContain("Com o link: Admin · Ada.");
+    expect(within(ana).getByRole("button", { name: "Cargos para Ana Souza" }).textContent).toBe("Admin");
+    await click(within(ana).getByRole("button", { name: "Aprovar" }));
+    await settle(4);
+    expect(state.calls.find((c) => c.method === "joinRequests.approve")?.args).toEqual([ORG_ID, "r1", [ADMIN_ROLE_ID]]);
+    const bruno = card("Bruno Lima");
+    expect(bruno.textContent).toContain(
+      "O link deste pedido já recebeu todas as pessoas que podia. Para aprovar, aumente o máximo de pessoas do link.",
+    );
+    expect(within(bruno).getByRole("button", { name: "Aprovar" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  test("a link's cargo above yours starts out of the approval, said on the row; while Aprovar runs its cargos wait too", async () => {
+    setSystemTime(MIDDAY);
+    const [admin, everyone] = seedRoles() as [OrgRole, OrgRole];
+    const fin: OrgRole = {
+      ...admin,
+      id: "role-fin",
+      name: "Financeiro",
+      icon: "wallet",
+      color: "green",
+      position: 0,
+      permissions: ["approve_actions"],
+      hoist: false,
+      givable: false,
+    };
+    const link = {
+      id: "link-fin",
+      createdBy: "Marina Alves",
+      roleIds: [fin.id, ADMIN_ROLE_ID],
+      channelIds: [],
+      agentIds: [],
+      full: false,
+    };
+    const state = seedState({
+      joinRequests: [{ ...(requests()[0] as JoinRequest), link }],
+      roles: [fin, { ...admin, position: 1 }, { ...everyone, position: 2 }],
+    });
+    const api = createFakeApi(state);
+    const approve = api.joinRequests.approve;
+    let release = () => {};
+    api.joinRequests.approve = async (...args) => {
+      await new Promise<void>((r) => {
+        release = r;
+      });
+      return approve(...args);
+    };
+    await renderApp(`/org/${ORG_ID}/settings/invites`, { api });
+    await settle(6);
+    const ana = card("Ana Souza");
+    expect(ana.textContent).toContain("Com o link: Financeiro e Admin.");
+    expect(ana.textContent).toContain("Financeiro fica de fora: está acima do seu cargo.");
+    const picker = within(ana).getByRole("button", { name: "Cargos para Ana Souza" }) as HTMLButtonElement;
+    expect(picker.textContent).toBe("Admin");
+    await click(within(ana).getByRole("button", { name: "Aprovar" }));
+    await settle(2);
+    expect(picker.disabled).toBe(true);
+    await act(async () => release());
+    await settle(4);
+    expect(state.calls.find((c) => c.method === "joinRequests.approve")?.args).toEqual([ORG_ID, "r1", [ADMIN_ROLE_ID]]);
   });
 });
 
@@ -917,13 +1007,13 @@ describe("Members › Convidar pessoas", () => {
       "Num plano, você pode deixar cada um atender outras pessoas na página dele.",
     );
     // Before the addresses it's about.
-    const emails = within(invite).getByLabelText("E-mails");
-    expect((line as Element).compareDocumentPosition(emails) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const to = within(invite).getByLabelText("Para");
+    expect((line as Element).compareDocumentPosition(to) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One agent that answers everyone: someone invited gets an answer, so nothing to say.
     expect((await note("everyone")).line).toBeFalsy();
   });
 
-  test("a server that sends no email: the link's screen alone, with who waits; one that does: the addresses first, the link a step aside", async () => {
+  test("a server that sends no email: Link alone, no E-mail to switch to; one that does: E-mail first, Link beside it", async () => {
     const link = {
       id: "link-1",
       url: "http://localhost:3000/invite/k3J",
@@ -932,71 +1022,34 @@ describe("Members › Convidar pessoas", () => {
       createdBy: "Walter",
       waiting: 2,
     };
-    const { router } = await members("", { inviteLinks: [link], authConfig: { passwordReset: false } });
+    await members("", { inviteLinks: [link], authConfig: { passwordReset: false } }, "members");
     let invite = await openInvite();
-    // The host shows the link; no steps, nothing to type, nothing to send, no way back to the addresses.
-    expect(invite.querySelector(".auth__title")?.textContent).toBe("Este é o link da Acme.");
-    expect(invite.textContent).toContain("Quem abrir pede para entrar. Eu te mostro cada pedido, e você aprova.");
-    expect(invite.querySelector(".ac-dialog__sub")).toBeNull();
-    expect(invite.querySelector(".ac-steps")).toBeNull();
-    expect(within(invite).queryByLabelText("E-mails")).toBeNull();
-    expect(within(invite).queryByRole("button", { name: /^Convidar/ })).toBeNull();
-    expect((within(invite).getByLabelText("Link de convite") as HTMLInputElement).value).toBe(link.url);
-    // How it works, a step a line.
-    expect([...invite.querySelectorAll(".invite-how li")].map((li) => li.textContent)).toEqual([
-      "1A pessoa abre o link e diz quem é.",
-      "2O pedido chega para quem convida, aqui e no celular.",
-      "3Você aprova e escolhe com que cargo a pessoa entra.",
-    ]);
-    // Who waits, and the way to answer them in Members.
-    await settle(2);
-    const waiting = invite.querySelector(".invite-waiting") as HTMLElement;
-    expect(waiting.textContent).toContain("2 pedidos esperando você");
-    expect(waiting.textContent).toContain("Ana Souza e Bruno Lima");
-    const see = within(waiting).getByRole("link", { name: "Ver pedidos" });
-    expect(see.getAttribute("href")).toBe(`/org/${ORG_ID}/settings/members`);
-    await click(see);
     await settle(4);
-    expect(screen().queryByRole("dialog", { name: "Convidar para a Acme" })).toBeNull();
-    expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/members`);
+    expect(within(invite).queryByRole("radiogroup", { name: "Como convidar" })).toBeNull();
+    expect(within(invite).queryByLabelText("Para")).toBeNull();
+    expect((within(invite).getByLabelText("Link") as HTMLInputElement).value).toBe(link.url);
+    expect(within(invite).queryByRole("button", { name: /^Convidar/ })).toBeNull();
+    expect(within(invite).getByRole("button", { name: "Concluir" })).toBeTruthy();
     cleanup();
 
-    await members("", {
-      joinRequests: [],
-      inviteLinks: [link],
-      edition: "selfhost",
-      authConfig: { passwordReset: true },
-    });
+    await members(
+      "",
+      { joinRequests: [], inviteLinks: [link], edition: "selfhost", authConfig: { passwordReset: true } },
+      "members",
+    );
     invite = await openInvite();
-    expect(invite.querySelector(".ac-dialog__sub")?.textContent).toBe("Passo 1 de 4 · Quem");
-    expect(within(invite).getByLabelText("E-mails")).toBeTruthy();
-    // Nothing to invite yet.
-    expect(within(invite).getByRole("button", { name: "Continuar" }).hasAttribute("disabled")).toBe(true);
-    expect(within(invite).queryByLabelText("Link de convite")).toBeNull();
-    expect(invite.querySelector(".invite-orlink")?.textContent).toContain("Prefere mandar um link?");
-    await click(within(invite).getByRole("button", { name: "Ver o link" }));
-    await settle(2);
-    expect(invite.querySelector(".auth__title")?.textContent).toBe("Este é o link da Acme.");
-    expect((within(invite).getByLabelText("Link de convite") as HTMLInputElement).value).toBe(link.url);
-    // Nobody waits: no row for it.
-    expect(invite.querySelector(".invite-waiting")).toBeNull();
-    await click(within(invite).getByRole("button", { name: "Convidar por e-mail" }));
-    expect(invite.querySelector(".ac-dialog__sub")?.textContent).toBe("Passo 1 de 4 · Quem");
-    expect(within(invite).getByLabelText("E-mails")).toBeTruthy();
+    const how = within(invite).getByRole("radiogroup", { name: "Como convidar" });
+    expect(within(how).getByRole("radio", { name: "E-mail" }).getAttribute("aria-checked")).toBe("true");
+    expect(within(invite).getByLabelText("Para")).toBeTruthy();
+    expect(within(invite).queryByLabelText("Link")).toBeNull();
+    await click(within(how).getByRole("radio", { name: "Link" }));
+    await settle(4);
+    expect((within(invite).getByLabelText("Link") as HTMLInputElement).value).toBe(link.url);
   });
 });
 
-describe("Members › the invitation link", () => {
-  test("Desativar's word ends where Copiar link ends above it: the text button's padding hangs past the edge", async () => {
-    const read = (path: string) => Bun.file(new URL(path, import.meta.url).pathname).text();
-    expect(await read("../src/components/invite/invite.css")).toMatch(
-      /\.invite-link__foot > \.ac-btn--ghost:last-child \{\s*margin-right: calc\(-1 \* var\(--control-px-sm\)\);\s*\}/,
-    );
-    const ui = await read("../../../packages/ui/src/styles/components.css");
-    expect(ui.split("\n.ac-btn--sm {").at(-1)?.split("}")[0]).toContain("padding: 0 var(--control-px-sm);");
-  });
-
-  test("copy it from the page or the dialog, until when, Renovar keeps it, Desativar closes its requests, a new one", async () => {
+describe("People › Convites › the workspace's link", () => {
+  test("copy it from the page; it lists with what it gives; Desativar closes its requests; an older one can only go", async () => {
     const until = new Date(Date.now() + 20 * 86_400_000).toISOString();
     const { state } = await members("", {
       joinRequests: [],
@@ -1007,6 +1060,7 @@ describe("Members › the invitation link", () => {
           expiresAt: until,
           createdAt: new Date().toISOString(),
           createdBy: "Walter",
+          createdByUserId: "u-walter",
           waiting: 2,
         },
         {
@@ -1023,51 +1077,44 @@ describe("Members › the invitation link", () => {
     const fromPage = await withClipboard(() => click(screen().getByRole("button", { name: "Copiar link de convite" })));
     expect(fromPage).toEqual(["http://localhost:3000/invite/k3J"]);
     const copied = screen().getByRole("button", { name: "Copiado" });
-    // The word shown and its own icon (the other word stays unseen, with its own).
     expect(copied.querySelector(".ac-swap > :not([aria-hidden]) svg path")?.getAttribute("d")).toBe(
       icons.check[0]?.[1].d,
     );
     // An active link was there: none was made.
     expect(state.calls.some((c) => c.method === "invites.createLink")).toBe(false);
 
-    const invite = await openInvite();
-    await click(within(invite).getByRole("button", { name: "Ver o link" }));
-    await settle(2);
-    expect((within(invite).getByLabelText("Link de convite") as HTMLInputElement).value).toBe(
-      "http://localhost:3000/invite/k3J",
+    const links = screen().getByRole("region", { name: "Links" });
+    const plain = within(links).getByRole("group", { name: "Link Membro" });
+    expect(plain.querySelector(".members-row__sub")?.textContent).toBe("#general");
+    expect(plain.querySelector(".members-row__state")?.textContent).toMatch(
+      /^Ninguém entrou ainda · expira em \d+ dias$/,
     );
-    const fromDialog = await withClipboard(() => click(within(invite).getByRole("button", { name: "Copiar link" })));
-    expect(fromDialog).toEqual(["http://localhost:3000/invite/k3J"]);
-    expect(within(invite).getByRole("button", { name: "Copiado" })).toBeTruthy();
-    expect(invite.querySelector(".invite-link__foot")?.textContent).toMatch(/^Vale até \d+ \S+RenovarDesativar$/);
-    expect(invite.textContent).toMatch(/Link anterior, criado por João .+\. Vale até /);
+    const older = within(links).getByRole("group", { name: "Membro" });
+    expect(older.textContent).toMatch(/Link anterior, criado por João .+\. Vale até /);
 
-    await click(within(invite).getByRole("button", { name: "Renovar" }));
-    await settle(4);
-    expect(state.calls.find((c) => c.method === "invites.renewLink")?.args).toEqual([ORG_ID, "link-1"]);
-    expect(text()).toMatch(/O link vale até \d+ \S+\. Continua o mesmo\./);
-
-    const [turnOff] = within(invite).getAllByRole("button", { name: "Desativar" });
-    await click(turnOff as HTMLElement);
+    const more = within(links).getByRole("button", { name: "Mais ações para o link Membro" });
+    more.focus();
+    await act(async () => fireEvent.keyDown(more, { key: "Enter" }));
+    await click(screen().getByRole("menuitem", { name: "Desativar link" }));
     const dialog = screen().getByRole("dialog", { name: "Desativar o link?" });
     expect(dialog.textContent).toContain(
       "Ninguém mais consegue pedir com ele, e os 2 pedidos feitos por ele fecham também.",
     );
-    await click(within(dialog).getByRole("button", { name: "Desativar" }));
+    await click(within(dialog).getByRole("button", { name: "Desativar link" }));
     await settle(4);
     expect(state.calls.find((c) => c.method === "invites.turnOff")?.args).toEqual([ORG_ID, "link-1"]);
-    const after = screen().getByRole("dialog", { name: "Convidar para a Acme" });
-    expect(after.textContent).toContain("Nenhum link ativo.");
-    await click(within(after).getByRole("button", { name: "Criar link" }));
-    await settle(4);
-    expect(state.calls.some((c) => c.method === "invites.createLink")).toBe(true);
-    expect((within(after).getByLabelText("Link de convite") as HTMLInputElement).value).toMatch(
-      /^http:\/\/localhost:3000\/invite\/link-/,
+    await click(within(screen().getByRole("region", { name: "Links" })).getByRole("button", { name: "Desativar" }));
+    await click(
+      within(screen().getByRole("dialog", { name: "Desativar o link?" })).getByRole("button", {
+        name: "Desativar link",
+      }),
     );
+    await settle(4);
+    expect(state.calls.filter((c) => c.method === "invites.turnOff").at(-1)?.args).toEqual([ORG_ID, "link-0"]);
   });
 });
 
-test("the admins' notice: who asks, a Members chip, and it opens Members, from Abrir or the row itself", async () => {
+test("the admins' notice: who asks, a Convites chip, and it opens Convites, from Abrir or the row itself", async () => {
   const notice = async () => {
     const state = seedState({
       notifications: [
@@ -1090,16 +1137,16 @@ test("the admins' notice: who asks, a Members chip, and it opens Members, from A
   expect(row.getAttribute("aria-label")).toBe("Ana Souza e Bruno Lima pedem para entrar, não lida");
   expect(row.textContent).toContain("Ana Souza e Bruno Lima pedem para entrar");
   expect(row.querySelector(".nt-face")?.textContent).toBe("AS");
-  expect(row.querySelector(".nt-wr__src")?.textContent).toBe("Membros");
+  expect(row.querySelector(".nt-wr__src")?.textContent).toBe("Convites");
   await click(within(row).getByRole("button", { name: "Abrir" }));
   await settle(6);
-  expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/members`);
+  expect(router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/invites`);
   cleanup();
 
   const again = await notice();
   await click(again.row.querySelector(".nt-what") as HTMLElement);
   await settle(6);
-  expect(again.router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/members`);
+  expect(again.router.state.location.pathname).toBe(`/org/${ORG_ID}/settings/invites`);
 });
 
 test("the admins' notice names the first two who asked and counts the rest", async () => {

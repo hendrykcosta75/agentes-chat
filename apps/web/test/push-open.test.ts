@@ -290,7 +290,7 @@ describe("a pushed notification that can't be read", () => {
     });
     expect(fallbackTarget(data({ kind: "join_request" }))).toEqual({
       to: "/org/$orgId/settings/$section",
-      params: { section: "members" },
+      params: { section: "invites" },
     });
     expect(fallbackTarget(data({ kind: "mention", channelId: "c1", threadId: "t1" }))).toEqual({
       to: "/org/$orgId/threads/$threadId",

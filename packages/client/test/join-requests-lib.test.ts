@@ -99,10 +99,10 @@ test("a code that proves an address: its digits only, at most six, however it wa
 const waiting = (id: string, kind: AppNotification["kind"], updatedAt = "2026-10-26T10:00:00.000Z") =>
   ({ id, kind, waiting: true, source: { label: "Acme" }, actors: [], updatedAt }) as unknown as AppNotification;
 
-test("a request to join opens Members, and waits after what blocks someone's work", () => {
+test("a request to join opens People › Convites, and waits after what blocks someone's work", () => {
   expect(openTarget(waiting("j", "join_request"))).toEqual({
     to: "/org/$orgId/settings/$section",
-    params: { section: "members" },
+    params: { section: "invites" },
   });
   const later = "2026-10-26T11:00:00.000Z";
   const list = sortWaiting([
