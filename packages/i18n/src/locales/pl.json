@@ -1852,6 +1852,21 @@
     "hintAndroid": "Niektóre ekrany główne potrzebują kilku sekund, by pokazać nową ikonę.",
     "failed": "Nie udało się zmienić ikony. Spróbuj ponownie.",
     "agentsOf": "Agenci w {{org}}",
+    "yours": "Własna ikona",
+    "readyOne": "Gotowa",
+    "use": "Użyj tej ikony",
+    "inUse": "W użyciu",
+    "sky": "Tło",
+    "expression": "Mina",
+    "ready": "Gotowe ikony",
+    "oneOrOther": "Z dodatkiem mina pozostaje zwykła.",
+    "faces": {
+      "wink": "Mrugnięcie",
+      "heart": "Serca",
+      "star": "Gwiazdki",
+      "surprised": "Zdziwienie",
+      "angry": "Złość"
+    },
     "names": {
       "night": "Noc",
       "moon": "Księżyc",

@@ -1802,6 +1802,21 @@
     "hintAndroid": "Certains écrans d'accueil mettent quelques secondes à afficher la nouvelle icône.",
     "failed": "Impossible de changer l'icône. Réessayez.",
     "agentsOf": "Agents de {{org}}",
+    "yours": "Icône personnalisée",
+    "readyOne": "Prédéfinie",
+    "use": "Utiliser cette icône",
+    "inUse": "Utilisée",
+    "sky": "Arrière-plan",
+    "expression": "Expression du visage",
+    "ready": "Prédéfinies",
+    "oneOrOther": "Avec un accessoire, l'expression reste la normale.",
+    "faces": {
+      "wink": "Clin d'œil",
+      "heart": "Cœurs",
+      "star": "Étoiles",
+      "surprised": "Surprise",
+      "angry": "Colère"
+    },
     "names": {
       "night": "Nuit",
       "moon": "Lune",

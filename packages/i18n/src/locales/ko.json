@@ -1702,6 +1702,21 @@
     "hintAndroid": "일부 홈 화면은 새 아이콘을 표시하는 데 몇 초가 걸려요.",
     "failed": "아이콘을 바꾸지 못했어요. 다시 시도해 주세요.",
     "agentsOf": "{{org}}의 에이전트",
+    "yours": "내 아이콘",
+    "readyOne": "기본 제공",
+    "use": "이 아이콘 사용",
+    "inUse": "사용 중",
+    "sky": "배경",
+    "expression": "표정",
+    "ready": "기본 제공 아이콘",
+    "oneOrOther": "액세서리를 쓰면 표정은 기본으로 돌아가요.",
+    "faces": {
+      "wink": "윙크",
+      "heart": "하트",
+      "star": "별",
+      "surprised": "놀람",
+      "angry": "화남"
+    },
     "names": {
       "night": "밤",
       "moon": "달",

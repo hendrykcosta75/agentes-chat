@@ -1,6 +1,5 @@
 import { useAuthConfig, useIssues, useMe, useOverview } from "@agenteschat/client";
 import { showsAbout } from "@agenteschat/client/lib/about";
-import { appIconNameKey } from "@agenteschat/client/lib/app-icons";
 import { isPersonal, modeKey } from "@agenteschat/client/lib/workspace-mode";
 import { isAppLocale, localeInfo, readyLocales } from "@agenteschat/i18n/locale";
 import Constants from "expo-constants";
@@ -40,9 +39,10 @@ import { useTasksUnreadMarks, useUnreadThreads } from "../shared/queries";
 import { useMyPerson, usePresenceOf } from "../status/hooks";
 import { personLine } from "../status/logic";
 import { openStatus } from "../status/StatusScreen";
+import { AppIconPicture, useAppIconName } from "./AppIconPage";
 import { useAppIcon } from "./app-icon";
 import { openIssuesWithMe, workspacesBeyond } from "./logic";
-import { AppIconPicture, useLanguageChoice, usePushSwitch, useSoundLabel, useStartLabel } from "./PreferencePages";
+import { useLanguageChoice, usePushSwitch, useSoundLabel, useStartLabel } from "./PreferencePages";
 import { useChangePhoto } from "./parts";
 import { useWorkspacesAcross, WorkspaceMark } from "./WorkspacesPages";
 
@@ -108,6 +108,7 @@ export function MeScreen() {
   const { groups, elsewhere } = useWorkspacesAcross();
   const theme = useTheme();
   const appIcon = useAppIcon();
+  const appIconName = useAppIconName(appIcon.icon ?? "night");
   const dir = useDirectory();
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -444,9 +445,9 @@ export function MeScreen() {
             {appIcon.supported && appIcon.icon ? (
               <GroupedRow
                 key="appIcon"
-                leading={<AppIconPicture id={appIcon.icon} />}
+                leading={<AppIconPicture icon={appIcon.icon} />}
                 label={t("appIcon.title")}
-                value={t(appIconNameKey(appIcon.icon))}
+                value={appIconName}
                 chevron
                 onPress={() => open("/me/app-icon")}
               />

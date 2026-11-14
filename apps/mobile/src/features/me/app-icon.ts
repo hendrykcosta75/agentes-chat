@@ -1,8 +1,8 @@
-import { APP_ICONS, type AppIconId, DEFAULT_APP_ICON, isAppIcon } from "@agenteschat/client/lib/app-icons";
+import { type AppIconId, DEFAULT_APP_ICON, type MadeIconSky } from "@agenteschat/client/lib/app-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
-import { iconOfNativeName, nativeIconName } from "./app-icon-names";
+import { iconOfNativeName, nativeIconName, type PhoneIcon, phoneIcons } from "./app-icon-names";
 
 /**
  * The app icon a person picks on their phone (ADR 0179), through modules/app-icon: iOS's alternate icons, Android's
@@ -17,8 +17,8 @@ interface AppIconNative {
 
 const native = requireOptionalNativeModule<AppIconNative>("AppIcon");
 
-/** Every icon's native name (Android's aliases; iOS reads none of them). */
-const NAMES = APP_ICONS.map((id) => nativeIconName(id, Platform.OS) ?? "");
+/** Every icon's native name (Android's aliases, the shipped one first; iOS reads none of them). */
+const NAMES = Platform.OS === "android" ? phoneIcons().map((icon) => nativeIconName(icon, "android") ?? "") : [];
 
 /**
  * Each icon's picture in the picker, as the home screen shows it in light and in dark: bundled assets (`require`
@@ -47,6 +47,12 @@ export const APP_ICON_PICTURES: Record<AppIconId, { light: number; dark: number 
   },
 };
 
+/** The made icons' skies without an agent: the picker draws the agent over them. */
+export const MADE_ICON_SKY_PICTURES: Record<MadeIconSky, number> = {
+  night: require("../../../assets/app-icons/made/night.png"),
+  sky: require("../../../assets/app-icons/made/sky.png"),
+};
+
 const KEY = ["app-icon"] as const;
 
 /** Whether this build can change its icon, and the one it shows now (null while asking). */
@@ -55,7 +61,7 @@ export function useAppIcon() {
   const query = useQuery({
     queryKey: KEY,
     staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async (): Promise<{ supported: boolean; icon: AppIconId }> => {
+    queryFn: async (): Promise<{ supported: boolean; icon: PhoneIcon }> => {
       if (!native) return { supported: false, icon: DEFAULT_APP_ICON };
       const supported = await native.supported(NAMES).catch(() => false);
       if (!supported) return { supported: false, icon: DEFAULT_APP_ICON };
@@ -63,10 +69,10 @@ export function useAppIcon() {
       return { supported: true, icon: iconOfNativeName(name, Platform.OS) };
     },
   });
-  const set = async (id: AppIconId) => {
-    if (!native || !isAppIcon(id)) return;
-    await native.set(NAMES, nativeIconName(id, Platform.OS));
-    qc.setQueryData(KEY, { supported: true, icon: id });
+  const set = async (icon: PhoneIcon) => {
+    if (!native) return;
+    await native.set(NAMES, nativeIconName(icon, Platform.OS));
+    qc.setQueryData(KEY, { supported: true, icon });
   };
   return { supported: query.data?.supported ?? false, icon: query.data?.icon ?? null, set };
 }

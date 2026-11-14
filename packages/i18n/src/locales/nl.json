@@ -1751,6 +1751,21 @@
     "hintAndroid": "Sommige startschermen doen er een paar seconden over om het nieuwe icoon te tonen.",
     "failed": "Kon het icoon niet wijzigen. Probeer het opnieuw.",
     "agentsOf": "Agents van {{org}}",
+    "yours": "Eigen icoon",
+    "readyOne": "Kant-en-klaar",
+    "use": "Dit icoon gebruiken",
+    "inUse": "In gebruik",
+    "sky": "Achtergrond",
+    "expression": "Gezichtsuitdrukking",
+    "ready": "Kant-en-klare iconen",
+    "oneOrOther": "Met een accessoire blijft de uitdrukking de gewone.",
+    "faces": {
+      "wink": "Knipoog",
+      "heart": "Hartjes",
+      "star": "Sterren",
+      "surprised": "Verrast",
+      "angry": "Boos"
+    },
     "names": {
       "night": "Nacht",
       "moon": "Maan",

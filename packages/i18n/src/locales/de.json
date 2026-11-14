@@ -1751,6 +1751,21 @@
     "hintAndroid": "Manche Startbildschirme brauchen ein paar Sekunden, bis das neue Symbol erscheint.",
     "failed": "Das Symbol konnte nicht geändert werden. Versuch es noch einmal.",
     "agentsOf": "Agenten in {{org}}",
+    "yours": "Eigenes Symbol",
+    "readyOne": "Vorgefertigt",
+    "use": "Dieses Symbol verwenden",
+    "inUse": "In Verwendung",
+    "sky": "Hintergrund",
+    "expression": "Gesichtsausdruck",
+    "ready": "Vorgefertigte",
+    "oneOrOther": "Mit einem Accessoire bleibt der Ausdruck der normale.",
+    "faces": {
+      "wink": "Zwinkern",
+      "heart": "Herzen",
+      "star": "Sterne",
+      "surprised": "Überrascht",
+      "angry": "Wütend"
+    },
     "names": {
       "night": "Nacht",
       "moon": "Mond",

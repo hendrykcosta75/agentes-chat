@@ -7,6 +7,7 @@ import { StyleSheet, View } from "react-native";
 import { pushPermission } from "@/lib/push";
 import { usePush } from "@/providers/push";
 import { Button, SheetScreen, Text, useToast } from "@/ui";
+import { AppIconPicture } from "../me/AppIconPage";
 import { APP_ICON_PICTURES, useAppIcon } from "../me/app-icon";
 import { useDirectory } from "../shared/hooks";
 import { useSurface } from "../shared/parts";
@@ -84,7 +85,11 @@ function Example({ title, body, time, opacity }: { title: string; body: string; 
   const icon = useAppIcon().icon ?? DEFAULT_APP_ICON;
   return (
     <View style={[styles.example, surface, { opacity }]}>
-      <Image source={APP_ICON_PICTURES[icon].light} style={styles.icon} />
+      {typeof icon === "string" ? (
+        <Image source={APP_ICON_PICTURES[icon].light} style={styles.icon} />
+      ) : (
+        <AppIconPicture icon={icon} size={34} />
+      )}
       <View style={styles.exampleText}>
         <View style={styles.exampleTop}>
           <Text variant="label" tone="ink" numberOfLines={1} style={styles.grow}>

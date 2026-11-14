@@ -1801,6 +1801,21 @@
     "hintAndroid": "Algunas pantallas de inicio tardan unos segundos en mostrar el icono nuevo.",
     "failed": "No se pudo cambiar el icono. Inténtalo de nuevo.",
     "agentsOf": "Agentes de {{org}}",
+    "yours": "Icono propio",
+    "readyOne": "Predefinido",
+    "use": "Usar este icono",
+    "inUse": "En uso",
+    "sky": "Fondo",
+    "expression": "Expresión",
+    "ready": "Predefinidos",
+    "oneOrOther": "Con un accesorio, la expresión es la normal.",
+    "faces": {
+      "wink": "Guiño",
+      "heart": "Corazones",
+      "star": "Estrellas",
+      "surprised": "Sorpresa",
+      "angry": "Enfado"
+    },
     "names": {
       "night": "Noche",
       "moon": "Luna",

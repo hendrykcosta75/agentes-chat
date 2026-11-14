@@ -50,8 +50,14 @@ class AppIconModule : Module() {
         PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
         PackageManager.DONT_KILL_APP,
       )
-      for (other in names) {
+      // Only what is on is turned off (the first is on by the manifest, with no setting of its own): with the
+      // icons a person makes there are hundreds of entries, and each change is a call to the system.
+      for ((i, other) in names.withIndex()) {
         if (other == picked) continue
+        val state = pm.getComponentEnabledSetting(component(other))
+        val on = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+          (i == 0 && state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+        if (!on) continue
         pm.setComponentEnabledSetting(
           component(other),
           PackageManager.COMPONENT_ENABLED_STATE_DISABLED,

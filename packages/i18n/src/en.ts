@@ -1897,6 +1897,22 @@ export const en = {
     failed: "Couldn't change the icon. Try again.",
     /** Over the open workspace's agents in the picker (web and desktop only). */
     agentsOf: "Agents in {{org}}",
+    /** On the phone, the name of an icon the person made (its sky, color and face or accessory). */
+    yours: "Your icon",
+    /** Under a ready-made icon's name, where a made one says its sky and face. */
+    readyOne: "Ready-made",
+    use: "Use this icon",
+    /** The same button when the icon shown is the one in use. */
+    inUse: "In use",
+    /** The made icon's parts. */
+    sky: "Background",
+    expression: "Expression",
+    /** Over the icons that come ready. */
+    ready: "Ready-made",
+    /** Under the accessories: an icon has a face or an accessory, never both. */
+    oneOrOther: "With an accessory, the expression stays the plain one.",
+    /** The expressions besides the agents' eye styles (`look.eyesNames`). */
+    faces: { wink: "Winking", heart: "Hearts", star: "Stars", surprised: "Surprised", angry: "Angry" },
     names: {
       night: "Night",
       moon: "Moon",

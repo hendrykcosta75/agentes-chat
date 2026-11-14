@@ -1702,6 +1702,21 @@
     "hintAndroid": "部分主屏幕需要几秒钟才会显示新图标。",
     "failed": "无法更换图标，请重试。",
     "agentsOf": "{{org}} 的智能体",
+    "yours": "自定义图标",
+    "readyOne": "预设",
+    "use": "使用此图标",
+    "inUse": "使用中",
+    "sky": "背景",
+    "expression": "表情",
+    "ready": "预设图标",
+    "oneOrOther": "佩戴配饰时，表情保持普通样式。",
+    "faces": {
+      "wink": "眨眼",
+      "heart": "爱心",
+      "star": "星星",
+      "surprised": "惊讶",
+      "angry": "生气"
+    },
     "names": {
       "night": "夜晚",
       "moon": "月亮",

@@ -1751,6 +1751,21 @@
     "hintAndroid": "Bazı ana ekranların yeni simgeyi göstermesi birkaç saniye sürer.",
     "failed": "Simge değiştirilemedi. Yeniden deneyin.",
     "agentsOf": "{{org}} ajanları",
+    "yours": "Özel simge",
+    "readyOne": "Hazır",
+    "use": "Bu simgeyi kullan",
+    "inUse": "Kullanımda",
+    "sky": "Arka plan",
+    "expression": "İfade",
+    "ready": "Hazır simgeler",
+    "oneOrOther": "Aksesuar takılıyken ifade normal kalır.",
+    "faces": {
+      "wink": "Göz kırpma",
+      "heart": "Kalpler",
+      "star": "Yıldızlar",
+      "surprised": "Şaşkın",
+      "angry": "Kızgın"
+    },
     "names": {
       "night": "Gece",
       "moon": "Ay",

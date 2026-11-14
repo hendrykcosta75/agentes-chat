@@ -4334,6 +4334,45 @@
   "appIcon.agentsOf": {
     "value": "Agents in {{org}}"
   },
+  "appIcon.yours": {
+    "value": "Your icon"
+  },
+  "appIcon.readyOne": {
+    "value": "Ready-made"
+  },
+  "appIcon.use": {
+    "value": "Use this icon"
+  },
+  "appIcon.inUse": {
+    "value": "In use"
+  },
+  "appIcon.sky": {
+    "value": "Background"
+  },
+  "appIcon.expression": {
+    "value": "Expression"
+  },
+  "appIcon.ready": {
+    "value": "Ready-made"
+  },
+  "appIcon.oneOrOther": {
+    "value": "With an accessory, the expression stays the plain one."
+  },
+  "appIcon.faces.wink": {
+    "value": "Winking"
+  },
+  "appIcon.faces.heart": {
+    "value": "Hearts"
+  },
+  "appIcon.faces.star": {
+    "value": "Stars"
+  },
+  "appIcon.faces.surprised": {
+    "value": "Surprised"
+  },
+  "appIcon.faces.angry": {
+    "value": "Angry"
+  },
   "appIcon.names.night": {
     "value": "Night"
   },
@@ -38832,6 +38871,21 @@
   "usageViews.unused": {
     "value": "No agent uses this account."
   },
+  "usageViews.models.exhausted": {
+    "value": "No quota left · resets {{when}}"
+  },
+  "usageViews.models.exhaustedUnknown": {
+    "value": "No quota left"
+  },
+  "usageViews.models.off": {
+    "value": "Turned off"
+  },
+  "usageViews.models.region": {
+    "value": "Needs the Global region"
+  },
+  "usageViews.models.inactive": {
+    "value": "No active subscription"
+  },
   "usageViews.usesNow": {
     "value": "uses it now"
   },
@@ -46215,20 +46269,5 @@
   },
   "feedback.offer.askFirst": {
     "value": "Ask before sending"
-  },
-  "usageViews.models.exhausted": {
-    "value": "No quota left · resets {{when}}"
-  },
-  "usageViews.models.exhaustedUnknown": {
-    "value": "No quota left"
-  },
-  "usageViews.models.off": {
-    "value": "Turned off"
-  },
-  "usageViews.models.region": {
-    "value": "Needs the Global region"
-  },
-  "usageViews.models.inactive": {
-    "value": "No active subscription"
   }
 }

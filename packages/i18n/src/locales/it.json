@@ -1802,6 +1802,21 @@
     "hintAndroid": "Alcune schermate Home impiegano qualche secondo a mostrare la nuova icona.",
     "failed": "Impossibile cambiare l'icona. Riprova.",
     "agentsOf": "Agenti di {{org}}",
+    "yours": "Icona personalizzata",
+    "readyOne": "Predefinita",
+    "use": "Usa questa icona",
+    "inUse": "In uso",
+    "sky": "Sfondo",
+    "expression": "Espressione",
+    "ready": "Predefinite",
+    "oneOrOther": "Con un accessorio, l'espressione resta quella normale.",
+    "faces": {
+      "wink": "Occhiolino",
+      "heart": "Cuori",
+      "star": "Stelle",
+      "surprised": "Sorpresa",
+      "angry": "Arrabbiato"
+    },
     "names": {
       "night": "Notte",
       "moon": "Luna",

@@ -10,13 +10,12 @@ import {
   useSetShowActivity,
   useSetStart,
 } from "@agenteschat/client";
-import { APP_ICONS, type AppIconId, appIconNameKey } from "@agenteschat/client/lib/app-icons";
 import { type AppLocale, readyLocales } from "@agenteschat/i18n/locale";
 import { SOUND_STYLES, type SoundStyle } from "@agenteschat/ui/sfx";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, Linking, Platform, StyleSheet, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 import { pushPermission, unregisterPush } from "@/lib/push";
 import { setSoundChoice, useSoundChoice } from "@/lib/sounds";
 import { readValue, STORED } from "@/lib/storage";
@@ -33,12 +32,11 @@ import {
   useTheme,
   useToast,
 } from "@/ui";
-import { APP_ICON_PICTURES, useAppIcon } from "./app-icon";
 import { Page } from "./parts";
 
 /**
  * Você's smaller screens, each pushed from its row: Workspaces, Notificações, Ao abrir o app, Respostas dos agentes,
- * Sons, Aparência, Ícone do app and Idioma.
+ * Sons, Aparência and Idioma (Ícone do app is AppIconPage.tsx).
  */
 
 const SOUND_LABELS: Record<SoundStyle, string> = {
@@ -330,48 +328,6 @@ export function AppearancePage() {
           />
         ))}
       </GroupedList>
-    </Page>
-  );
-}
-
-/** An icon's picture as the home screen shows it (in this appearance), rounded like one. */
-export function AppIconPicture({ id, size = 32 }: { id: AppIconId; size?: number }) {
-  const theme = useTheme();
-  const picture = APP_ICON_PICTURES[id][theme.scheme === "dark" ? "dark" : "light"];
-  return (
-    <Image
-      source={picture}
-      style={{ width: size, height: size, borderRadius: Math.round(size * 0.225) }}
-      accessibilityIgnoresInvertColors
-    />
-  );
-}
-
-/** Ícone do app (ADR 0179): the icons with their pictures; a tap changes the home screen's at once. */
-export function AppIconPage() {
-  const { t } = useTranslation();
-  const toast = useToast();
-  const appIcon = useAppIcon();
-  const pick = (id: AppIconId) => {
-    if (id === appIcon.icon) return;
-    appIcon.set(id).catch(() => toast({ title: t("appIcon.failed"), icon: "x" }));
-  };
-  return (
-    <Page title={t("appIcon.title")}>
-      <View style={styles.gap} />
-      <GroupedList>
-        {APP_ICONS.map((id) => (
-          <GroupedRow
-            key={id}
-            leading={<AppIconPicture id={id} />}
-            label={t(appIconNameKey(id))}
-            checked={appIcon.icon === id}
-            onPress={() => pick(id)}
-          />
-        ))}
-      </GroupedList>
-      {/* iOS confirms with an alert of its own; Android's home screens take their time. */}
-      {Platform.OS === "android" ? <GroupedFooter>{t("appIcon.hintAndroid")}</GroupedFooter> : null}
     </Page>
   );
 }

@@ -1702,6 +1702,21 @@
     "hintAndroid": "Beberapa layar utama butuh beberapa detik untuk menampilkan ikon baru.",
     "failed": "Ikon tidak bisa diganti. Coba lagi.",
     "agentsOf": "Agen di {{org}}",
+    "yours": "Ikon buatan sendiri",
+    "readyOne": "Siap pakai",
+    "use": "Gunakan ikon ini",
+    "inUse": "Sedang dipakai",
+    "sky": "Latar",
+    "expression": "Ekspresi",
+    "ready": "Ikon siap pakai",
+    "oneOrOther": "Dengan aksesori, ekspresinya tetap yang biasa.",
+    "faces": {
+      "wink": "Kedip",
+      "heart": "Hati",
+      "star": "Bintang",
+      "surprised": "Terkejut",
+      "angry": "Marah"
+    },
     "names": {
       "night": "Malam",
       "moon": "Bulan",

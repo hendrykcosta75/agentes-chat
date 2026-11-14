@@ -11,12 +11,25 @@
  * - Web (apps/web/public/): favicon.ico, apple-touch-icon.png and icon-512.png, app-icons/<id>.ico/.png for the
  *   pick (the tab's icon and the picker's preview), and app-icons/night-sky.png, the Night's sky without its agent,
  *   on which the web draws a workspace's agent picked as the icon.
+ * - The skies of the icons a person makes on their phone (apps/mobile/assets/app-icons/made/<sky>.png), on which
+ *   its picker draws the agent; those icons' own files are drawn when the app is built (app-icons/made-files.mjs).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gray, ico, png, render, resize } from "./app-icons/raster.mjs";
-import { APP_ICON_IDS, backLayers, frontLayers, monoLayers, SCENES, tiled } from "./app-icons/scenes.mjs";
+import {
+  APP_ICON_IDS,
+  backLayers,
+  frontLayers,
+  MADE_COLORS,
+  MADE_LOOKS,
+  MADE_SKIES,
+  madeScene,
+  monoLayers,
+  SCENES,
+  tiled,
+} from "./app-icons/scenes.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 function write(path, data) {
@@ -66,4 +79,9 @@ for (const id of APP_ICON_IDS) {
     write("apps/web/public/apple-touch-icon.png", png(resize(light, 180), { opaque: true }));
     write("apps/web/public/icon-512.png", png(resize(light, 512), { opaque: true }));
   }
+}
+
+for (const sky of MADE_SKIES) {
+  const back = backLayers(madeScene({ sky, color: MADE_COLORS[0], look: MADE_LOOKS[0] }));
+  write(`apps/mobile/assets/app-icons/made/${sky}.png`, png(render(360, back, { k: 1024 / 360 }), { opaque: true }));
 }
