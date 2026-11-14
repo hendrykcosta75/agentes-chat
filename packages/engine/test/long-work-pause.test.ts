@@ -221,6 +221,30 @@ test("Continuar agora: who may press it lets the run go on once; a person's mess
   expect(audit).toHaveLength(1);
 });
 
+test("Continuar agora from outside the card's conversation: the run's people may, nobody else", async () => {
+  // The card of a run that answers another agent sits in the agents' DM, which no person is a member of.
+  f = await setup({ contextTools: true, budgetNanoUsd: BUDGET, reply: stepper(12) });
+  await spend(f, 96);
+  await post(f, "@dev analisa os pedidos");
+  await drainOutbox(f.db, f.handlers);
+  const [paused] = await runs(f);
+  const [card] = await cards(f);
+  if (!card || !paused) throw new Error("no card");
+  const deps = { db: f.db, pubsub: f.pubsub, gateway: f.gateway };
+  // Neither is a member of the conversation; one owns the agent.
+  const bia = await addMember(f.db, f.org.id, "member", "bia");
+  const caio = await addMember(f.db, f.org.id, "member", "caio");
+  await f.db.update(schema.agents).set({ ownerUserId: bia.id }).where(eq(schema.agents.id, f.agent.id));
+
+  const refused = await answerNow(deps, caio.id, f.org.id, card.id).catch((e) => e);
+  expect((refused as { code?: string }).code).toBe("run.answer_forbidden");
+  expect(await answerNow(deps, bia.id, f.org.id, card.id)).toEqual({
+    runs: [{ agentId: f.agent.id, runId: paused.id }],
+  });
+  const [after] = await cards(f);
+  expect(after?.meta.actionCard).toEqual(expect.objectContaining({ state: "continued", continuedByUserId: bia.id }));
+});
+
 test("a person's message during a pause is answered by a run of its own", async () => {
   f = await setup({
     contextTools: true,
